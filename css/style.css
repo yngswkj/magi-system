@@ -418,8 +418,10 @@ textarea {
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
     z-index: 200;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    padding-top: 10%;
+    overflow-y: auto;
 }
 
 .modal-content {
@@ -428,6 +430,8 @@ textarea {
     padding: 30px;
     width: 500px;
     box-shadow: 0 0 50px var(--dim-color);
+    min-height: 600px;
+    margin-bottom: 50px;
 }
 
 .form-group {
@@ -456,6 +460,78 @@ input, select {
 
 .modal-actions {
     text-align: right;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--dim-color);
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--dim-color);
+    padding: 10px 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.tab-btn.active {
+    color: var(--main-color);
+    border-bottom-color: var(--main-color);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.persona-item {
+    border: 1px solid var(--dim-color);
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.persona-info {
+    flex: 1;
+}
+
+.persona-name {
+    font-weight: bold;
+    color: var(--main-color);
+}
+
+.persona-desc {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.persona-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-persona-btn {
+    color: var(--main-color);
+    border-color: var(--main-color);
+    font-size: 0.8rem;
+    padding: 2px 5px;
+}
+
+.delete-persona-btn {
+    color: var(--deny-color);
+    border-color: var(--deny-color);
+    font-size: 0.8rem;
+    padding: 2px 5px;
 }
 
 /* States */
@@ -847,6 +923,20 @@ body.discussion-active .discussion-overlay {
     font-size: 1.2rem;
     font-weight: bold;
     background: rgba(255, 153, 0, 0.1);
+}
+
+#export-discussion {
+    font-size: 0.8rem;
+    padding: 5px 15px;
+    margin-right: 10px;
+    border: 1px solid var(--main-color);
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--main-color);
+}
+
+#export-discussion:hover {
+    background: var(--main-color);
+    color: black;
 }
 
 .discussion-timeline {

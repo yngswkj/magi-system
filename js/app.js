@@ -17,6 +17,7 @@ const finalResultText = finalResultDisplay.querySelector('.result-text');
 const discussionOverlay = document.getElementById('discussion-overlay');
 const discussionTimeline = document.getElementById('discussion-timeline');
 const closeDiscussionBtn = document.getElementById('close-discussion');
+const exportDiscussionBtn = document.getElementById('export-discussion');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
 const maxLengthInput = document.getElementById('max-length');
 
@@ -57,6 +58,72 @@ let selectedModel = localStorage.getItem('magi_model') || 'gpt-5.1';
 let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
 let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
 let maxResponseLength = localStorage.getItem('magi_max_length') || 300;
+let customPersonas = JSON.parse(localStorage.getItem('magi_custom_personas') || '[]');
+let isMuted = localStorage.getItem('magi_muted') === 'true';
+let editingPersonaId = null;
+
+// Sound Manager
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const SoundManager = {
+    playTone: (freq, type, duration, vol = 0.1) => {
+        if (isMuted) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    },
+
+    playPhaseChange: () => {
+        SoundManager.playTone(880, 'square', 0.1, 0.05);
+        setTimeout(() => SoundManager.playTone(1760, 'square', 0.3, 0.05), 100);
+    },
+
+    playDecision: (isApproved) => {
+        if (isApproved) {
+            SoundManager.playTone(440, 'sine', 0.1);
+            setTimeout(() => SoundManager.playTone(554, 'sine', 0.1), 100);
+            setTimeout(() => SoundManager.playTone(659, 'sine', 0.4), 200);
+        } else {
+            SoundManager.playTone(150, 'sawtooth', 0.3, 0.1);
+            setTimeout(() => SoundManager.playTone(100, 'sawtooth', 0.4, 0.1), 100);
+        }
+    },
+
+    playClick: () => {
+        SoundManager.playTone(1200, 'sine', 0.05, 0.02);
+    }
+};
+
+function getAllPersonas() {
+    return [...PERSONAS, ...customPersonas];
+}
+
+function getSystemPromptWithJsonInstruction(persona) {
+    const instruction = `
+出力フォーマットは必ず以下のJSON形式にしてください:
+{
+  "decision": "承認" または "否定",
+  "reason": "理由"
+}`;
+
+    // If the prompt already seems to have JSON instructions, trust it (or append anyway to be safe about fields)
+    // To be safe and ensure compatibility with the app's logic (which expects decision/reason keys),
+    // we should probably append it unless we are sure.
+    // However, appending it to the standard personas (which already have it) might be redundant but harmless.
+    // The standard personas have: "出力フォーマットはJSONで { "decision": "承認" or "否定", "reason": "理由" } としてください。"
+
+    if (persona.systemPrompt.includes("JSON") && persona.systemPrompt.includes("decision")) {
+        return persona.systemPrompt;
+    }
+    return persona.systemPrompt + "\n" + instruction;
+}
 
 const THEMES = {
     orange: {
@@ -114,7 +181,7 @@ function init() {
         // Clear existing options first to avoid duplicates if init runs multiple times
         core.select.innerHTML = '';
 
-        PERSONAS.forEach(persona => {
+        getAllPersonas().forEach(persona => {
             const option = document.createElement('option');
             option.value = persona.id;
             option.textContent = persona.name;
@@ -164,6 +231,10 @@ function init() {
         });
     }
 
+    if (exportDiscussionBtn) {
+        exportDiscussionBtn.addEventListener('click', exportDiscussionLog);
+    }
+
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
         settingsForm.addEventListener('submit', (e) => {
@@ -200,12 +271,69 @@ function init() {
         discussionModeCheckbox.addEventListener('change', (e) => {
             if (e.target.checked) {
                 document.body.classList.add('discussion-active');
+                SoundManager.playPhaseChange();
             } else {
                 document.body.classList.remove('discussion-active');
+                SoundManager.playClick();
             }
         });
     }
+
+    // Sound Mute Toggle
+    const muteBtn = document.getElementById('mute-btn');
+    if (muteBtn) {
+        muteBtn.textContent = isMuted ? "SOUND: OFF" : "SOUND: ON";
+        muteBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            localStorage.setItem('magi_muted', isMuted);
+            muteBtn.textContent = isMuted ? "SOUND: OFF" : "SOUND: ON";
+            if (!isMuted) SoundManager.playClick();
+        });
+    }
+
+    // Add click sounds to all buttons
+    document.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => SoundManager.playClick());
+    });
+
+    // Tab Switching
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent form submission if inside form
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+
+            // Re-render list if switching to personas tab
+            if (btn.dataset.tab === 'custom-personas') {
+                renderCustomPersonaList();
+                resetPersonaForm();
+            }
+        });
+    });
+
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            applyTheme(selectedTheme);
+            settingsModal.style.display = 'none';
+            resetPersonaForm();
+        }
+    });
+
+    // Custom Persona Logic
+    renderCustomPersonaList();
+    const addPersonaBtn = document.getElementById('add-persona-btn');
+    if (addPersonaBtn) {
+        addPersonaBtn.addEventListener('click', addCustomPersona);
+    }
 }
+
+// Core logic unchanged...
 
 async function randomizePersonas() {
     randomPersonaBtn.disabled = true;
@@ -217,13 +345,13 @@ async function randomizePersonas() {
         return;
     }
 
-    // Shuffle PERSONAS array
-    const shuffledPersonas = [...PERSONAS].sort(() => 0.5 - Math.random());
+    const allPersonas = getAllPersonas();
+    const shuffled = [...allPersonas].sort(() => 0.5 - Math.random());
 
     // Assign unique personas to active cores
     const assignments = activeCores.map((core, index) => {
         // If we have more cores than personas, loop around (though unlikely with 3 cores / 6 personas)
-        const targetPersona = shuffledPersonas[index % shuffledPersonas.length];
+        const targetPersona = shuffled[index % shuffled.length];
         return { core, targetPersona };
     });
 
@@ -432,6 +560,7 @@ async function runDiscussionMode(activeCores, client, topic) {
     }
 
     await waitForNextPhase();
+    SoundManager.playPhaseChange();
 
     // --- Round 2: Cross Review (Sequential or Parallel with context) ---
     finalResultText.textContent = "DISCUSSION PHASE 2";
@@ -468,10 +597,11 @@ ${othersOpinions}
         core.history.push({ role: "user", content: discussionPrompt });
 
         const personaId = core.select.value;
-        const persona = PERSONAS.find(p => p.id === personaId);
+        const persona = getAllPersonas().find(p => p.id === personaId);
+        const systemPrompt = getSystemPromptWithJsonInstruction(persona);
 
         try {
-            const result = await client.analyze(core.history, persona.systemPrompt);
+            const result = await client.analyze(core.history, systemPrompt);
 
             core.element.classList.remove('processing');
             core.status.textContent = "OPINION";
@@ -498,6 +628,7 @@ ${othersOpinions}
     }
 
     await waitForNextPhase();
+    SoundManager.playPhaseChange();
 
     // --- Round 3: Final Decision ---
     finalResultText.textContent = "FINAL JUDGMENT";
@@ -514,10 +645,11 @@ ${othersOpinions}
         core.history.push({ role: "user", content: finalPrompt });
 
         const personaId = core.select.value;
-        const persona = PERSONAS.find(p => p.id === personaId);
+        const persona = getAllPersonas().find(p => p.id === personaId);
+        const systemPrompt = getSystemPromptWithJsonInstruction(persona);
 
         try {
-            const result = await client.analyze(core.history, persona.systemPrompt);
+            const result = await client.analyze(core.history, systemPrompt);
 
             core.element.classList.remove('processing');
             core.status.textContent = result.decision;
@@ -603,13 +735,17 @@ ${allDiscussions}
     if (type === 'phase') {
         entry.className = 'timeline-phase';
         entry.textContent = text;
+    } else if (type === 'final-report') {
+        entry.className = 'timeline-entry final-report';
+        entry.innerHTML = `
+**MAGI SYSTEM 最終合意形成レポート**
+
+${text.replace(/\n/g, '\n\n')}
+`;
     } else {
         entry.className = 'timeline-entry';
         if (coreId) {
             entry.classList.add(`core-${coreId}`);
-        }
-        if (type === 'final-report') {
-            entry.classList.add('final-report');
         }
 
         const header = document.createElement('div');
@@ -661,10 +797,11 @@ async function processCore(core, client, topic, isDiscussion = false) {
     appendMessageToDisplay(core, "user", topic);
 
     const personaId = core.select.value;
-    const persona = PERSONAS.find(p => p.id === personaId);
+    const persona = getAllPersonas().find(p => p.id === personaId);
+    const systemPrompt = getSystemPromptWithJsonInstruction(persona);
 
     try {
-        const result = await client.analyze(core.history, persona.systemPrompt);
+        const result = await client.analyze(core.history, systemPrompt);
 
         // Update UI with Result
         core.element.classList.remove('processing');
@@ -685,9 +822,11 @@ async function processCore(core, client, topic, isDiscussion = false) {
             if (result.decision.includes("承認")) {
                 core.element.classList.add('approved');
                 core.element.classList.remove('denied');
+                SoundManager.playDecision(true);
             } else {
                 core.element.classList.add('denied');
                 core.element.classList.remove('approved');
+                SoundManager.playDecision(false);
             }
         }
 
@@ -719,9 +858,11 @@ function determineFinalResult(results) {
     if (approveCount > denyCount) {
         finalResultText.textContent = "承認 (GRANTED)";
         finalResultDisplay.classList.add('approved');
+        SoundManager.playDecision(true);
     } else if (denyCount > approveCount) {
         finalResultText.textContent = "否定 (DENIED)";
         finalResultDisplay.classList.add('denied');
+        SoundManager.playDecision(false);
     } else {
         finalResultText.textContent = "審議中 (PENDING)";
     }
@@ -738,5 +879,182 @@ function resetStatusUI() {
     finalResultText.textContent = "ANALYZING...";
 }
 
-// Start
+function exportDiscussionLog() {
+    let logText = "# MAGI SYSTEM CONFERENCE LOG\n";
+    logText += `Date: ${new Date().toLocaleString()}\n\n`;
+
+    Array.from(discussionTimeline.children).forEach(entry => {
+        if (entry.classList.contains('timeline-phase')) {
+            logText += `\n## ${entry.textContent}\n\n`;
+        } else if (entry.classList.contains('timeline-entry')) {
+            const headerEl = entry.querySelector('.timeline-header');
+            const contentEl = entry.querySelector('.timeline-content');
+
+            if (headerEl && contentEl) {
+                const header = headerEl.textContent;
+                const content = contentEl.textContent;
+                logText += `**${header}**\n${content}\n\n`;
+            } else {
+                // Fallback for final report or other custom entries
+                logText += `${entry.innerText}\n\n`;
+            }
+        }
+    });
+
+    const blob = new Blob([logText], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `magi-log-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Custom Persona Functions
+function renderCustomPersonaList() {
+    const listContainer = document.getElementById('custom-persona-list');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '';
+    if (customPersonas.length === 0) {
+        listContainer.innerHTML = '<p style="color: #888; text-align: center;">No custom personas yet.</p>';
+        return;
+    }
+
+    customPersonas.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'persona-item';
+        item.innerHTML = `
+            <div class="persona-info">
+                <div class="persona-name">${p.name}</div>
+                <div class="persona-desc">${p.description}</div>
+            </div>
+            <div class="persona-actions">
+                <button class="edit-persona-btn" data-id="${p.id}">EDIT</button>
+                <button class="delete-persona-btn" data-id="${p.id}">DELETE</button>
+            </div>
+        `;
+        listContainer.appendChild(item);
+    });
+
+    // Add listeners
+    listContainer.querySelectorAll('.edit-persona-btn').forEach(btn => {
+        btn.addEventListener('click', () => editCustomPersona(btn.dataset.id));
+    });
+    listContainer.querySelectorAll('.delete-persona-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteCustomPersona(btn.dataset.id));
+    });
+}
+
+function addCustomPersona() {
+    const nameInput = document.getElementById('new-persona-name');
+    const descInput = document.getElementById('new-persona-desc');
+    const promptInput = document.getElementById('new-persona-prompt');
+
+    const name = nameInput.value.trim();
+    const desc = descInput.value.trim();
+    const prompt = promptInput.value.trim();
+
+    if (!name || !prompt) {
+        alert("Name and System Prompt are required.");
+        return;
+    }
+
+    if (editingPersonaId) {
+        // Update existing
+        const index = customPersonas.findIndex(p => p.id === editingPersonaId);
+        if (index !== -1) {
+            customPersonas[index] = {
+                id: editingPersonaId,
+                name: name,
+                description: desc,
+                systemPrompt: prompt
+            };
+        }
+        resetPersonaForm();
+    } else {
+        // Create new
+        const newPersona = {
+            id: 'custom-' + Date.now(),
+            name: name,
+            description: desc,
+            systemPrompt: prompt
+        };
+        customPersonas.push(newPersona);
+
+        // Reset inputs manually if not using resetPersonaForm (which clears editing state)
+        nameInput.value = '';
+        descInput.value = '';
+        promptInput.value = '';
+    }
+
+    localStorage.setItem('magi_custom_personas', JSON.stringify(customPersonas));
+    renderCustomPersonaList();
+    updatePersonaDropdowns();
+}
+
+function editCustomPersona(id) {
+    const persona = customPersonas.find(p => p.id === id);
+    if (!persona) return;
+
+    document.getElementById('new-persona-name').value = persona.name;
+    document.getElementById('new-persona-desc').value = persona.description;
+    document.getElementById('new-persona-prompt').value = persona.systemPrompt;
+
+    editingPersonaId = id;
+
+    const btn = document.getElementById('add-persona-btn');
+    if (btn) btn.textContent = "UPDATE PERSONA";
+
+    const header = document.querySelector('#custom-personas h3');
+    if (header) header.textContent = "EDIT PERSONA";
+
+    // Scroll to form
+    header.scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetPersonaForm() {
+    editingPersonaId = null;
+    document.getElementById('new-persona-name').value = '';
+    document.getElementById('new-persona-desc').value = '';
+    document.getElementById('new-persona-prompt').value = '';
+
+    const btn = document.getElementById('add-persona-btn');
+    if (btn) btn.textContent = "ADD PERSONA";
+
+    const header = document.querySelector('#custom-personas h3');
+    if (header) header.textContent = "ADD NEW PERSONA";
+}
+
+function deleteCustomPersona(id) {
+    if (!confirm("Are you sure you want to delete this persona?")) return;
+    customPersonas = customPersonas.filter(p => p.id !== id);
+    localStorage.setItem('magi_custom_personas', JSON.stringify(customPersonas));
+    renderCustomPersonaList();
+    updatePersonaDropdowns();
+}
+
+function updatePersonaDropdowns() {
+    cores.forEach(core => {
+        const currentVal = core.select.value;
+        core.select.innerHTML = '';
+        getAllPersonas().forEach(persona => {
+            const option = document.createElement('option');
+            option.value = persona.id;
+            option.textContent = persona.name;
+            core.select.appendChild(option);
+        });
+        // Restore selection if it still exists, otherwise default
+        if (getAllPersonas().some(p => p.id === currentVal)) {
+            core.select.value = currentVal;
+        } else {
+            // Fallback to defaults based on core index
+            if (core.id === 1) core.select.value = 'scientist';
+            else if (core.id === 2) core.select.value = 'mother';
+            else core.select.value = 'woman';
+        }
+    });
+}
 init();

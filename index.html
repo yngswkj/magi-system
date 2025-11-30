@@ -19,6 +19,7 @@
             <h1>MAGI SYSTEM</h1>
             <div class="status-bar">
                 <span id="system-status">SYSTEM: STANDBY</span>
+                <button id="mute-btn" style="margin-right: 10px;">SOUND: ON</button>
                 <button id="settings-btn">SETTINGS</button>
             </div>
         </header>
@@ -112,51 +113,84 @@
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <h2>SYSTEM CONFIGURATION</h2>
-            <form id="settings-form">
-                <!-- Hidden username field for accessibility/password manager support -->
-                <input type="text" name="username" autocomplete="username" style="display:none;">
 
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="general-settings">GENERAL</button>
+                <button class="tab-btn" data-tab="custom-personas">PERSONAS</button>
+            </div>
+
+            <div id="general-settings" class="tab-content active">
+                <form id="settings-form">
+                    <!-- Hidden username field for accessibility/password manager support -->
+                    <input type="text" name="username" autocomplete="username" style="display:none;">
+
+                    <div class="form-group">
+                        <label for="api-key">OpenAI API Key</label>
+                        <input type="password" id="api-key" placeholder="sk-..." autocomplete="current-password">
+                        <p class="note">※キーはブラウザ内にのみ保存されます</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="model-select">Model</label>
+                        <select id="model-select">
+                            <option value="gpt-5.1">GPT-5.1</option>
+                            <option value="gpt-5-mini">GPT-5 Mini</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="reasoning-effort-group">
+                        <label for="reasoning-effort">Reasoning Effort (GPT-5.1 only)</label>
+                        <select id="reasoning-effort">
+                            <option value="none">None (Default)</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="theme-select">Theme Color</label>
+                        <select id="theme-select">
+                            <option value="orange">Orange (Default)</option>
+                            <option value="blue">Blue</option>
+                            <option value="green">Green</option>
+                            <option value="purple">Purple</option>
+                            <option value="red">Red</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-length">Max Response Length (Chars)</label>
+                        <input type="number" id="max-length" value="300" min="50" max="2000"
+                            style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--main-color); color: var(--main-color); padding: 5px;">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" id="cancel-settings"
+                            style="border-color: var(--dim-color); color: #888; margin-right: 10px;">CANCEL</button>
+                        <button type="submit" id="save-settings">SAVE & CLOSE</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="custom-personas" class="tab-content">
+                <div class="persona-list" id="custom-persona-list">
+                    <!-- List items will be injected here -->
+                </div>
+                <hr style="border-color: var(--dim-color); margin: 15px 0;">
+                <h3>ADD NEW PERSONA</h3>
                 <div class="form-group">
-                    <label for="api-key">OpenAI API Key</label>
-                    <input type="password" id="api-key" placeholder="sk-..." autocomplete="current-password">
-                    <p class="note">※キーはブラウザ内にのみ保存されます</p>
+                    <label>Name</label>
+                    <input type="text" id="new-persona-name" placeholder="e.g. Security Expert">
                 </div>
                 <div class="form-group">
-                    <label for="model-select">Model</label>
-                    <select id="model-select">
-                        <option value="gpt-5.1">GPT-5.1</option>
-                        <option value="gpt-5-mini">GPT-5 Mini</option>
-                    </select>
-                </div>
-                <div class="form-group" id="reasoning-effort-group">
-                    <label for="reasoning-effort">Reasoning Effort (GPT-5.1 only)</label>
-                    <select id="reasoning-effort">
-                        <option value="none">None (Default)</option>
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                    </select>
+                    <label>Description</label>
+                    <input type="text" id="new-persona-desc" placeholder="Short description">
                 </div>
                 <div class="form-group">
-                    <label for="theme-select">Theme Color</label>
-                    <select id="theme-select">
-                        <option value="orange">Orange (Default)</option>
-                        <option value="blue">Blue</option>
-                        <option value="green">Green</option>
-                        <option value="purple">Purple</option>
-                        <option value="red">Red</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="max-length">Max Response Length (Chars)</label>
-                    <input type="number" id="max-length" value="300" min="50" max="2000"
-                        style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--main-color); color: var(--main-color); padding: 5px;">
+                    <label>System Prompt</label>
+                    <textarea id="new-persona-prompt" rows="4"
+                        style="width: 100%; background: #111; border: 1px solid var(--main-color); color: var(--main-color); padding: 5px;"
+                        placeholder="You are a..."></textarea>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" id="cancel-settings"
-                        style="border-color: var(--dim-color); color: #888; margin-right: 10px;">CANCEL</button>
-                    <button type="submit" id="save-settings">SAVE & CLOSE</button>
+                    <button type="button" id="add-persona-btn">ADD PERSONA</button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -165,7 +199,10 @@
         <div class="discussion-window">
             <div class="discussion-header">
                 <span class="blink"> >> CONFERENCE MODE ACTIVE << </span>
-                        <button id="close-discussion">MINIMIZE</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="export-discussion" style="font-size: 0.8rem; padding: 2px 10px;">EXPORT</button>
+                            <button id="close-discussion">MINIMIZE</button>
+                        </div>
             </div>
             <div class="discussion-timeline" id="discussion-timeline">
                 <!-- Messages go here -->
