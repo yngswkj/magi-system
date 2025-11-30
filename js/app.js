@@ -18,7 +18,9 @@ const discussionOverlay = document.getElementById('discussion-overlay');
 const discussionTimeline = document.getElementById('discussion-timeline');
 const closeDiscussionBtn = document.getElementById('close-discussion');
 const exportDiscussionBtn = document.getElementById('export-discussion');
+const copyDiscussionBtn = document.getElementById('copy-discussion');
 const nextPhaseBtn = document.getElementById('next-phase-btn');
+const resetBtn = document.getElementById('reset-btn');
 const maxLengthInput = document.getElementById('max-length');
 
 // Core Elements
@@ -59,6 +61,7 @@ let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
 let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
 let maxResponseLength = localStorage.getItem('magi_max_length') || 300;
 let customPersonas = JSON.parse(localStorage.getItem('magi_custom_personas') || '[]');
+let discussionHistory = JSON.parse(localStorage.getItem('magi_history') || '[]');
 let isMuted = localStorage.getItem('magi_muted') === 'true';
 let editingPersonaId = null;
 
@@ -235,6 +238,14 @@ function init() {
         exportDiscussionBtn.addEventListener('click', exportDiscussionLog);
     }
 
+    if (copyDiscussionBtn) {
+        copyDiscussionBtn.addEventListener('click', copyDiscussionLog);
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetSession);
+    }
+
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
         settingsForm.addEventListener('submit', (e) => {
@@ -312,6 +323,8 @@ function init() {
             if (btn.dataset.tab === 'custom-personas') {
                 renderCustomPersonaList();
                 resetPersonaForm();
+            } else if (btn.dataset.tab === 'history-tab') {
+                renderHistoryList();
             }
         });
     });
@@ -330,6 +343,12 @@ function init() {
     const addPersonaBtn = document.getElementById('add-persona-btn');
     if (addPersonaBtn) {
         addPersonaBtn.addEventListener('click', addCustomPersona);
+    }
+
+    // History Logic
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', clearAllHistory);
     }
 }
 
@@ -538,21 +557,24 @@ async function runDiscussionMode(activeCores, client, topic) {
     // --- Round 1: Initial Analysis (Parallel) ---
     appendDiscussionLog("SYSTEM", "--- PHASE 1: INITIAL ANALYSIS ---", "phase");
 
-    const round1Results = [];
     const round1Promises = activeCores.map(async (core) => {
         setActiveSpeaker(core, activeCores);
         const result = await processCore(core, client, topic, true); // true = discussion mode (no decision yet)
-        round1Results.push({ coreId: core.id, result: result });
-
-        // Log to overlay
-        const personaName = core.select.options[core.select.selectedIndex].text;
-        appendDiscussionLog(personaName, result.reason, "ai", core.id);
-
-        return result;
+        return { core, result };
     });
 
     try {
-        await Promise.all(round1Promises);
+        const round1Results = await Promise.all(round1Promises);
+
+        // Sort by Core ID to ensure fixed order
+        round1Results.sort((a, b) => a.core.id - b.core.id);
+
+        round1Results.forEach(({ core, result }) => {
+            // Log to overlay
+            const personaName = getPersonaNameWithSuffix(core);
+            appendDiscussionLog(personaName, result.reason, "ai", core.id);
+        });
+
     } catch (error) {
         console.error("Round 1 failed:", error);
         alert("議論フェーズ1でエラーが発生しました。");
@@ -609,20 +631,24 @@ ${othersOpinions}
             core.history.push({ role: "assistant", content: JSON.stringify(result) });
             appendMessageToDisplay(core, "ai", result.reason);
 
-            // Log to overlay
-            const personaName = core.select.options[core.select.selectedIndex].text;
-            appendDiscussionLog(personaName, result.reason, "ai", core.id);
-
-            return result;
+            return { core, result };
         } catch (error) {
             console.error(`Core ${core.id} Round 2 failed`, error);
             core.element.classList.remove('processing');
-            return null;
+            return { core, result: { decision: "Error", reason: "Error processing request." } };
         }
     });
 
     try {
-        await Promise.all(round2Promises);
+        const round2Results = await Promise.all(round2Promises);
+
+        // Sort by Core ID
+        round2Results.sort((a, b) => a.core.id - b.core.id);
+
+        round2Results.forEach(({ core, result }) => {
+            const personaName = getPersonaNameWithSuffix(core);
+            appendDiscussionLog(personaName, result.reason, "ai", core.id);
+        });
     } catch (error) {
         console.error("Round 2 failed:", error);
     }
@@ -657,10 +683,6 @@ ${othersOpinions}
             core.history.push({ role: "assistant", content: JSON.stringify(result) });
             appendMessageToDisplay(core, "ai", result.reason);
 
-            // Log to overlay
-            const personaName = core.select.options[core.select.selectedIndex].text;
-            appendDiscussionLog(personaName, `[${result.decision}] ${result.reason}`, "ai", core.id);
-
             // Apply Color Style
             if (result.decision.includes("承認")) {
                 core.element.classList.add('approved');
@@ -670,16 +692,26 @@ ${othersOpinions}
                 core.element.classList.remove('approved');
             }
 
-            return result.decision;
+            return { core, result };
         } catch (error) {
             console.error(`Core ${core.id} Round 3 failed`, error);
-            return "ERROR";
+            return { core, result: { decision: "ERROR", reason: "Error processing request." } };
         }
     });
 
     try {
-        const results = await Promise.all(round3Promises);
-        determineFinalResult(results);
+        const round3Results = await Promise.all(round3Promises);
+
+        // Sort by Core ID
+        round3Results.sort((a, b) => a.core.id - b.core.id);
+
+        round3Results.forEach(({ core, result }) => {
+            const personaName = getPersonaNameWithSuffix(core);
+            appendDiscussionLog(personaName, `[${result.decision}] ${result.reason}`, "ai", core.id);
+        });
+
+        const results = round3Results.map(r => r.result.decision);
+        determineFinalResult(results, topic); // Pass topic here
         resetActiveSpeakers(activeCores);
         appendDiscussionLog("SYSTEM", `>>> FINAL DECISION: ${finalResultText.textContent}`, "system");
 
@@ -688,12 +720,9 @@ ${othersOpinions}
         // --- Phase 4: Consensus (New) ---
         appendDiscussionLog("SYSTEM", "--- PHASE 4: CONSENSUS REPORT ---", "phase");
 
-        const allDiscussions = activeCores.map(core => {
-            const personaName = core.select.options[core.select.selectedIndex].text;
-            // Get the last assistant message (Round 3 result)
-            const lastMsg = core.history[core.history.length - 1];
-            const content = JSON.parse(lastMsg.content);
-            return `[${personaName}] (${content.decision}): ${content.reason}`;
+        const allDiscussions = round3Results.map(({ core, result }) => {
+            const personaName = getPersonaNameWithSuffix(core);
+            return `[${personaName}] (${result.decision}): ${result.reason}`;
         }).join("\n\n");
 
         const summaryPrompt = `
@@ -849,7 +878,7 @@ function appendMessageToDisplay(core, role, text) {
     msgDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function determineFinalResult(results) {
+function determineFinalResult(results, topic = null) {
     const approveCount = results.filter(r => r.includes("承認")).length;
     const denyCount = results.filter(r => r.includes("否定")).length;
 
@@ -866,6 +895,10 @@ function determineFinalResult(results) {
     } else {
         finalResultText.textContent = "審議中 (PENDING)";
     }
+
+    // Save History
+    console.log("Saving history...");
+    saveDiscussionHistory(finalResultText.textContent, topic);
 }
 
 function resetStatusUI() {
@@ -879,7 +912,7 @@ function resetStatusUI() {
     finalResultText.textContent = "ANALYZING...";
 }
 
-function exportDiscussionLog() {
+function generateLogText() {
     let logText = "# MAGI SYSTEM CONFERENCE LOG\n";
     logText += `Date: ${new Date().toLocaleString()}\n\n`;
 
@@ -900,7 +933,34 @@ function exportDiscussionLog() {
             }
         }
     });
+    return logText;
+}
 
+function resetSession() {
+    if (!confirm("Reset current session? All unsaved progress will be lost.")) return;
+
+    // Clear Timeline
+    discussionTimeline.innerHTML = '';
+
+    // Reset Cores
+    cores.forEach(core => {
+        core.history = [];
+        core.element.classList.remove('approved', 'denied', 'processing');
+        core.status.textContent = "STANDBY";
+        core.display.innerHTML = '';
+    });
+
+    // Reset UI
+    document.body.classList.remove('discussion-active');
+    finalResultDisplay.classList.remove('approved', 'denied');
+    finalResultText.textContent = "ANALYZING...";
+    document.getElementById('topic-input').value = '';
+
+    SoundManager.playClick();
+}
+
+function exportDiscussionLog() {
+    const logText = generateLogText();
     const blob = new Blob([logText], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -910,6 +970,41 @@ function exportDiscussionLog() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+async function copyDiscussionLog() {
+    const logText = generateLogText();
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(logText);
+        } else {
+            // Fallback for insecure contexts (http)
+            const textArea = document.createElement("textarea");
+            textArea.value = logText;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+                throw err;
+            }
+            document.body.removeChild(textArea);
+        }
+
+        const originalText = copyDiscussionBtn.textContent;
+        copyDiscussionBtn.textContent = "COPIED!";
+        SoundManager.playDecision(true);
+        setTimeout(() => {
+            copyDiscussionBtn.textContent = originalText;
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy to clipboard');
+    }
 }
 
 // Custom Persona Functions
@@ -1057,4 +1152,167 @@ function updatePersonaDropdowns() {
         }
     });
 }
+
+function getPersonaNameWithSuffix(core) {
+    const personaId = core.select.value;
+    const persona = getAllPersonas().find(p => p.id === personaId);
+    const baseName = persona ? persona.name : "UNKNOWN";
+
+    let suffix = "";
+    if (core.id === 1) suffix = " (MELCHIOR)";
+    else if (core.id === 2) suffix = " (BALTHASAR)";
+    else if (core.id === 3) suffix = " (CASPER)";
+
+    return baseName + suffix;
+}
+
+// History Functions
+function saveDiscussionHistory(result, topic = null) {
+    const finalTopic = topic || document.getElementById('topic-input').value || "No Topic";
+    const logs = [];
+
+    Array.from(discussionTimeline.children).forEach(entry => {
+        if (entry.classList.contains('timeline-phase')) {
+            logs.push({ type: 'phase', text: entry.textContent });
+        } else if (entry.classList.contains('timeline-entry')) {
+            if (entry.classList.contains('final-report')) {
+                logs.push({ type: 'final-report', html: entry.innerHTML });
+            } else {
+                const headerEl = entry.querySelector('.timeline-header');
+                const contentEl = entry.querySelector('.timeline-content');
+                if (headerEl && contentEl) {
+                    let coreId = null;
+                    if (entry.classList.contains('core-0')) coreId = 0;
+                    if (entry.classList.contains('core-1')) coreId = 1;
+                    if (entry.classList.contains('core-2')) coreId = 2;
+
+                    logs.push({
+                        type: 'entry',
+                        coreId: coreId,
+                        header: headerEl.textContent,
+                        content: contentEl.textContent
+                    });
+                } else {
+                    logs.push({ type: 'text', text: entry.innerText });
+                }
+            }
+        }
+    });
+
+    const historyItem = {
+        id: 'hist-' + Date.now(),
+        timestamp: new Date().toISOString(),
+        topic: finalTopic,
+        result: result,
+        logs: logs
+    };
+
+    console.log("History item created:", historyItem);
+
+    discussionHistory.unshift(historyItem); // Add to top
+    // Limit history to 20 items
+    if (discussionHistory.length > 20) {
+        discussionHistory = discussionHistory.slice(0, 20);
+    }
+    localStorage.setItem('magi_history', JSON.stringify(discussionHistory));
+    console.log("History saved to localStorage. Total items:", discussionHistory.length);
+}
+
+function renderHistoryList() {
+    const listContainer = document.getElementById('history-list');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '';
+    if (discussionHistory.length === 0) {
+        listContainer.innerHTML = '<p style="color: #888; text-align: center;">No history available.</p>';
+        return;
+    }
+
+    discussionHistory.forEach(item => {
+        const date = new Date(item.timestamp).toLocaleString();
+        const el = document.createElement('div');
+        el.className = 'persona-item'; // Reuse style
+        el.innerHTML = `
+            <div class="persona-info">
+                <div class="persona-name">${item.topic}</div>
+                <div class="persona-desc">${date} - Result: ${item.result}</div>
+            </div>
+            <div class="persona-actions">
+                <button class="edit-persona-btn" onclick="loadHistory('${item.id}')">LOAD</button>
+                <button class="delete-persona-btn" onclick="deleteHistory('${item.id}')">DELETE</button>
+            </div>
+        `;
+        listContainer.appendChild(el);
+    });
+}
+
+function loadHistory(id) {
+    const item = discussionHistory.find(h => h.id === id);
+    if (!item) return;
+
+    if (document.body.classList.contains('discussion-active')) {
+        if (!confirm("Current discussion will be lost. Load history?")) return;
+    }
+
+    // Close modal
+    document.getElementById('settings-modal').style.display = 'none';
+
+    // Activate discussion mode
+    document.body.classList.add('discussion-active');
+    discussionTimeline.innerHTML = '';
+    finalResultDisplay.classList.remove('approved', 'denied');
+    finalResultText.textContent = item.result;
+
+    if (item.result.includes("承認")) finalResultDisplay.classList.add('approved');
+    else if (item.result.includes("否定")) finalResultDisplay.classList.add('denied');
+
+    // Reconstruct Timeline
+    item.logs.forEach(log => {
+        const entry = document.createElement('div');
+        if (log.type === 'phase') {
+            entry.className = 'timeline-phase';
+            entry.textContent = log.text;
+        } else if (log.type === 'final-report') {
+            entry.className = 'timeline-entry final-report';
+            entry.innerHTML = log.html;
+        } else if (log.type === 'entry') {
+            entry.className = 'timeline-entry';
+            if (log.coreId !== null) entry.classList.add(`core-${log.coreId}`);
+
+            const header = document.createElement('div');
+            header.className = 'timeline-header';
+            header.textContent = log.header;
+
+            const content = document.createElement('div');
+            content.className = 'timeline-content';
+            content.textContent = log.content;
+
+            entry.appendChild(header);
+            entry.appendChild(content);
+        } else if (log.type === 'text') {
+            entry.className = 'timeline-entry';
+            entry.innerText = log.text;
+        }
+        discussionTimeline.appendChild(entry);
+    });
+}
+
+// Expose to global scope for onclick handlers in innerHTML
+window.loadHistory = loadHistory;
+window.deleteHistory = deleteHistory;
+
+function deleteHistory(id) {
+    if (!confirm("Delete this history log?")) return;
+    discussionHistory = discussionHistory.filter(h => h.id !== id);
+    localStorage.setItem('magi_history', JSON.stringify(discussionHistory));
+    renderHistoryList();
+}
+
+function clearAllHistory() {
+    if (!confirm("Clear ALL history? This cannot be undone.")) return;
+    discussionHistory = [];
+    localStorage.setItem('magi_history', JSON.stringify(discussionHistory));
+    renderHistoryList();
+}
+
 init();

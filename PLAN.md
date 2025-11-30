@@ -60,7 +60,7 @@ magi-system/
 *   **制御**: フェーズ進行の手動制御、回答長制限。
 *   **モバイル対応**: レスポンシブデザイン。
 
-## 7. Phase 3: Utility & Customization (現在進行中)
+## 7. Phase 3: Utility & Customization (完了)
 *   **結果のエクスポート機能**:
     *   議論ログや最終レポートをMarkdown/テキスト形式でダウンロード。
     *   クリップボードへのコピー。
