@@ -1,0 +1,502 @@
+:root {
+    --bg-color: #000000;
+    --main-color: #ff9900;
+    /* Amber/Orange */
+    --dim-color: #663300;
+    --text-color: #ffcc00;
+    --approve-color: #00ff00;
+    --deny-color: #ff0000;
+    --font-family: 'Share Tech Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scanlines Effect */
+.scanlines {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0) 50%,
+            rgba(0, 0, 0, 0.2) 50%,
+            rgba(0, 0, 0, 0.2));
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--main-color);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+h1 {
+    font-size: 2rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--main-color);
+}
+
+.status-bar {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+button {
+    background: transparent;
+    border: 1px solid var(--main-color);
+    color: var(--main-color);
+    padding: 5px 15px;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+}
+
+button:hover {
+    background: var(--main-color);
+    color: var(--bg-color);
+    box-shadow: 0 0 15px var(--main-color);
+}
+
+/* MAGI Layout */
+.magi-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    position: relative;
+    margin-bottom: 20px;
+    min-height: 0;
+    /* Crucial for nested flex/grid scrolling */
+    overflow: hidden;
+    /* Prevent layout from expanding beyond container */
+}
+
+.magi-core {
+    border: 2px solid var(--main-color);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 153, 0, 0.05);
+    transition: all 0.5s;
+    clip-path: polygon(10px 0, 100% 0,
+            100% calc(100% - 10px), calc(100% - 10px) 100%,
+            0 100%, 0 10px);
+    min-height: 0;
+    /* Crucial for scrolling */
+    height: 100%;
+    /* Fill grid cell */
+    overflow: hidden;
+    /* Ensure content stays inside */
+}
+
+/* Positioning Cores */
+#core-1 {
+    /* MELCHIOR - Top Left */
+    grid-column: 1;
+    grid-row: 1;
+}
+
+#core-2 {
+    /* BALTHASAR - Top Right */
+    grid-column: 2;
+    grid-row: 1;
+}
+
+#core-3 {
+    /* CASPER - Bottom Center */
+    grid-column: 1 / span 2;
+    grid-row: 2;
+    width: 60%;
+    margin: 0 auto;
+}
+
+.core-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--dim-color);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    height: 50px;
+    /* Fixed height for alignment */
+}
+
+.core-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.core-name {
+    font-weight: bold;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.persona-select {
+    background: black;
+    color: var(--main-color);
+    border: 1px solid var(--dim-color);
+    font-family: var(--font-family);
+    height: 40px;
+    /* Match toggle height roughly */
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #333;
+    transition: .4s;
+    border: 1px solid var(--dim-color);
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #666;
+    transition: .4s;
+}
+
+input:checked+.slider {
+    background-color: rgba(255, 153, 0, 0.2);
+    border-color: var(--main-color);
+}
+
+input:checked+.slider:before {
+    transform: translateX(20px);
+    background-color: var(--main-color);
+}
+
+.magi-core.disabled {
+    opacity: 0.5;
+    /* Slightly more visible */
+    filter: grayscale(100%);
+}
+
+/* Ensure controls remain interactive when disabled */
+.magi-core.disabled .core-controls {
+    pointer-events: auto;
+    filter: none;
+    /* Keep controls colored or at least distinct */
+}
+
+/* Disable other parts */
+.magi-core.disabled .core-display,
+.magi-core.disabled .core-name {
+    pointer-events: none;
+}
+
+.core-display {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    /* Allow shrinking */
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><text x="50" y="50" font-family="monospace" font-size="20" fill="%23331a00" text-anchor="middle" dominant-baseline="middle">MAGI</text></svg>');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100px;
+    padding-right: 5px;
+    /* Space for scrollbar */
+}
+
+/* Custom Scrollbar */
+.core-display::-webkit-scrollbar {
+    width: 8px;
+}
+
+.core-display::-webkit-scrollbar-track {
+    background: #111;
+}
+
+.core-display::-webkit-scrollbar-thumb {
+    background: var(--dim-color);
+}
+
+.core-display::-webkit-scrollbar-thumb:hover {
+    background: var(--main-color);
+}
+
+.conversation-history {
+    /* Remove flex: 1 to allow natural height, but keep it scrollable via parent */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 10px;
+    z-index: 1;
+    /* Above background */
+}
+
+.message {
+    padding: 8px;
+    border-left: 2px solid var(--dim-color);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.message.user {
+    border-left-color: #fff;
+    color: #ccc;
+    font-size: 0.8rem;
+}
+
+.message.ai {
+    border-left-color: var(--main-color);
+}
+
+.status-indicator {
+    font-size: 2rem;
+    text-align: center;
+    margin-top: 20px;
+    opacity: 0.5;
+    letter-spacing: 2px;
+    display: none;
+    /* Hidden by default, shown when processing */
+}
+
+.processing .status-indicator {
+    display: block;
+    animation: blink 0.5s infinite alternate;
+}
+
+.processing .conversation-history {
+    display: none;
+}
+
+.magi-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150px;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+    /* Click through */
+}
+
+.result-display {
+    background: black;
+    border: 4px solid var(--main-color);
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 0 30px var(--main-color);
+    transform: rotate(45deg);
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-text {
+    transform: rotate(-45deg);
+    font-weight: bold;
+    font-size: 1.2rem;
+    white-space: nowrap;
+}
+
+/* Input Area */
+.input-area {
+    display: flex;
+    gap: 10px;
+    height: 80px;
+}
+
+textarea {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--main-color);
+    color: var(--text-color);
+    padding: 10px;
+    font-family: var(--font-family);
+    resize: none;
+}
+
+#analyze-btn {
+    width: 150px;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: black;
+    border: 2px solid var(--main-color);
+    padding: 30px;
+    width: 500px;
+    box-shadow: 0 0 50px var(--dim-color);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+input, select {
+    width: 100%;
+    padding: 8px;
+    background: #111;
+    border: 1px solid var(--main-color);
+    color: var(--main-color);
+    font-family: var(--font-family);
+}
+
+.note {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 5px;
+}
+
+.modal-actions {
+    text-align: right;
+}
+
+/* States */
+.approved {
+    border-color: var(--approve-color);
+    box-shadow: 0 0 20px var(--approve-color) inset;
+    color: var(--approve-color);
+}
+
+.denied {
+    border-color: var(--deny-color);
+    box-shadow: 0 0 20px var(--deny-color) inset;
+    color: var(--deny-color);
+}
+
+.processing .status-indicator {
+    animation: blink 0.5s infinite alternate;
+}
+
+/* Slot Machine Effect */
+.slot-overlay {
+    position: absolute;
+    background: black;
+    border: 1px solid var(--main-color);
+    overflow: hidden;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: 0 0 10px var(--main-color);
+}
+
+.slot-strip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Height will be dynamic based on content */
+    transition: transform 3s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.slot-item {
+    height: 40px;
+    /* Must match select height */
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    white-space: nowrap;
+    color: var(--main-color);
+    font-family: var(--font-family);
+    background: black;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes blink {
+    from {
+        opacity: 0.2;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
