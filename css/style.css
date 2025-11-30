@@ -23,6 +23,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    transition: background-color 0.5s ease;
 }
 
 /* Scanlines Effect */
@@ -111,6 +112,7 @@ button:hover {
     /* Crucial for nested flex/grid scrolling */
     overflow: hidden;
     /* Prevent layout from expanding beyond container */
+    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.5s ease;
 }
 
 .magi-core {
@@ -372,6 +374,10 @@ input:checked+.slider:before {
     display: flex;
     gap: 10px;
     height: 80px;
+    position: relative;
+    z-index: 200;
+    /* Above overlay (150) */
+    transition: transform 0.5s ease;
 }
 
 textarea {
@@ -384,10 +390,22 @@ textarea {
     resize: none;
 }
 
+.controls-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 220px;
+    justify-content: center;
+}
+
 #analyze-btn {
-    width: 150px;
+    width: 100%;
+    height: 32px;
     font-weight: bold;
-    font-size: 1.2rem;
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Modal */
@@ -501,6 +519,31 @@ input, select {
     }
 }
 
+@keyframes blink-btn {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 5px var(--main-color);
+    }
+
+    50% {
+        opacity: 0.8;
+        box-shadow: 0 0 20px var(--main-color), 0 0 10px var(--main-color) inset;
+    }
+
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 5px var(--main-color);
+    }
+}
+
+.blink {
+    animation: blink 1s infinite alternate;
+}
+
+.blink-active {
+    animation: blink-btn 1.5s infinite ease-in-out;
+}
+
 /* Mobile Optimization */
 @media (max-width: 768px) {
     .container {
@@ -559,6 +602,10 @@ input, select {
         flex-shrink: 0;
     }
 
+    .controls-wrapper {
+        width: 100%;
+    }
+
     textarea {
         height: 60px;
     }
@@ -572,5 +619,417 @@ input, select {
     .modal-content {
         width: 95%;
         padding: 20px;
+    }
+
+    .discussion-window {
+        width: 95%;
+        height: 80%;
+        /* Leave space for input area if needed, or just fill mostly */
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+
+    .discussion-header {
+        padding: 10px;
+        font-size: 1rem;
+    }
+
+    .discussion-header span.blink {
+        font-size: 0.8rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .discussion-timeline {
+        padding: 10px;
+    }
+
+    .timeline-entry {
+        padding: 8px 8px 8px 12px;
+        /* Slightly less padding */
+        border-left-width: 2px;
+    }
+
+    .timeline-header {
+        font-size: 0.8rem;
+    }
+
+    .timeline-content {
+        font-size: 0.9rem;
+    }
+
+    .timeline-phase {
+        font-size: 0.8rem;
+        padding: 5px;
+        margin: 5px 0;
+    }
+
+    /* Adjust input area z-index and position for mobile discussion */
+    body.discussion-active .input-area {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #000;
+        padding: 10px;
+        border-top: 1px solid var(--dim-color);
+    }
+
+    /* Make room for the fixed input area */
+    body.discussion-active .discussion-window {
+        height: calc(100% - 140px);
+        /* Approximate height of input area */
+        margin-bottom: 140px;
+    }
+}
+
+/* New Mode Switch Styles */
+.mode-switch-container {
+    position: relative;
+    width: 100%;
+    height: 32px;
+}
+
+.mode-checkbox {
+    display: none;
+}
+
+.mode-label {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--dim-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.mode-text {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.mode-text.normal {
+    color: var(--dim-color);
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.mode-text.discussion {
+    color: var(--main-color);
+    opacity: 0;
+    transform: translateY(100%);
+    text-shadow: 0 0 5px var(--main-color);
+}
+
+.mode-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--dim-color);
+    transition: all 0.3s ease;
+    z-index: 1;
+}
+
+/* Checked State */
+.mode-checkbox:checked+.mode-label {
+    border-color: var(--main-color);
+    box-shadow: 0 0 10px rgba(255, 153, 0, 0.2);
+}
+
+.mode-checkbox:checked+.mode-label .mode-text.normal {
+    opacity: 0;
+    transform: translateY(-100%);
+}
+
+.mode-checkbox:checked+.mode-label .mode-text.discussion {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.mode-checkbox:checked+.mode-label .mode-indicator {
+    height: 100%;
+    background: linear-gradient(to top, rgba(255, 153, 0, 0.2), transparent);
+}
+
+/* UI Transition Animation */
+body {
+    transition: background-color 0.5s ease;
+}
+
+.magi-layout {
+    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.5s ease;
+}
+
+/* Discussion Mode Active State for Body */
+body.discussion-active {
+    background-color: #050505;
+}
+
+body.discussion-active .magi-layout {
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
+}
+
+body.discussion-active .discussion-overlay {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Active Speaker Styles */
+.magi-core.dimmed {
+    opacity: 0.3;
+    filter: grayscale(0.8);
+    transform: scale(0.98);
+}
+
+.magi-core.active-speaker {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.02);
+    box-shadow: 0 0 30px var(--main-color);
+    z-index: 10;
+    border-color: #fff;
+}
+
+/* Discussion Overlay */
+.discussion-overlay {
+    display: flex;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.5s ease, visibility 0.5s;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+}
+
+.discussion-window {
+    width: 90%;
+    max-width: 800px;
+    height: 75%;
+    border: 2px solid var(--main-color);
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 30px var(--dim-color);
+    clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+}
+
+.discussion-header {
+    padding: 15px;
+    border-bottom: 1px solid var(--main-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    background: rgba(255, 153, 0, 0.1);
+}
+
+.discussion-timeline {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Custom Scrollbar for Timeline */
+.discussion-timeline::-webkit-scrollbar {
+    width: 8px;
+}
+
+.discussion-timeline::-webkit-scrollbar-track {
+    background: #111;
+}
+
+.discussion-timeline::-webkit-scrollbar-thumb {
+    background: var(--dim-color);
+}
+
+.timeline-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-left: 3px solid var(--main-color);
+    padding-left: 15px;
+    animation: fadeIn 0.3s ease-out;
+    background: linear-gradient(90deg, rgba(255, 153, 0, 0.05) 0%, transparent 100%);
+    padding: 10px 10px 10px 15px;
+}
+
+.timeline-header {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-family);
+    margin-bottom: 5px;
+}
+
+.timeline-content {
+    font-size: 1rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.timeline-phase {
+    text-align: center;
+    border-top: 1px dashed var(--dim-color);
+    border-bottom: 1px dashed var(--dim-color);
+    padding: 10px;
+    margin: 10px 0;
+    color: var(--main-color);
+    font-weight: bold;
+    letter-spacing: 2px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Core Specific Colors for Timeline */
+.timeline-entry.core-1 {
+    border-left-color: #00ccff;
+    /* Cyan */
+    background: linear-gradient(90deg, rgba(0, 204, 255, 0.1) 0%, transparent 100%);
+}
+
+.timeline-entry.core-1 .timeline-header {
+    color: #00ccff;
+}
+
+.timeline-entry.core-2 {
+    border-left-color: #ffcc00;
+    /* Yellow/Orange */
+    background: linear-gradient(90deg, rgba(255, 204, 0, 0.1) 0%, transparent 100%);
+}
+
+.timeline-entry.core-2 .timeline-header {
+    color: #ffcc00;
+}
+
+.timeline-entry.core-3 {
+    border-left-color: #ff0066;
+    /* Magenta/Red */
+    background: linear-gradient(90deg, rgba(255, 0, 102, 0.1) 0%, transparent 100%);
+}
+
+.timeline-entry.core-3 .timeline-header {
+    color: #ff0066;
+}
+
+/* Final Report Style */
+.timeline-entry.final-report {
+    border: 2px solid var(--main-color);
+    background: rgba(0, 0, 0, 0.8);
+    margin-top: 20px;
+    padding: 20px;
+    box-shadow: 0 0 20px rgba(255, 153, 0, 0.2);
+}
+
+.timeline-entry.final-report .timeline-header {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--main-color);
+    border-bottom: 1px solid var(--dim-color);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+/* Mobile Optimization for Discussion Mode */
+@media (max-width: 768px) {
+    .discussion-window {
+        width: 95%;
+        height: 80%;
+        /* Leave space for input area if needed, or just fill mostly */
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+
+    .discussion-header {
+        padding: 10px;
+        font-size: 1rem;
+    }
+
+    .discussion-header span.blink {
+        font-size: 0.8rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .discussion-timeline {
+        padding: 10px;
+    }
+
+    .timeline-entry {
+        padding: 8px 8px 8px 12px;
+        /* Slightly less padding */
+        border-left-width: 2px;
+    }
+
+    .timeline-header {
+        font-size: 0.8rem;
+    }
+
+    .timeline-content {
+        font-size: 0.9rem;
+    }
+
+    .timeline-phase {
+        font-size: 0.8rem;
+        padding: 5px;
+        margin: 5px 0;
+    }
+
+    /* Adjust input area z-index and position for mobile discussion */
+    body.discussion-active .input-area {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #000;
+        padding: 10px;
+        border-top: 1px solid var(--dim-color);
+    }
+
+    /* Make room for the fixed input area */
+    body.discussion-active .discussion-window {
+        height: calc(100% - 180px);
+        /* Approximate height of input area */
+        margin-bottom: 180px;
     }
 }

@@ -14,6 +14,11 @@ const topicInput = document.getElementById('topic-input');
 const randomPersonaBtn = document.getElementById('random-persona-btn');
 const finalResultDisplay = document.getElementById('final-result');
 const finalResultText = finalResultDisplay.querySelector('.result-text');
+const discussionOverlay = document.getElementById('discussion-overlay');
+const discussionTimeline = document.getElementById('discussion-timeline');
+const closeDiscussionBtn = document.getElementById('close-discussion');
+const nextPhaseBtn = document.getElementById('next-phase-btn');
+const maxLengthInput = document.getElementById('max-length');
 
 // Core Elements
 const cores = [
@@ -51,6 +56,7 @@ let apiKey = localStorage.getItem('magi_api_key') || '';
 let selectedModel = localStorage.getItem('magi_model') || 'gpt-5.1';
 let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
 let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
+let maxResponseLength = localStorage.getItem('magi_max_length') || 300;
 
 const THEMES = {
     orange: {
@@ -85,6 +91,7 @@ function init() {
     // Load Settings
     if (apiKey) apiKeyInput.value = apiKey;
     modelSelect.value = selectedModel;
+    if (maxLengthInput) maxLengthInput.value = maxResponseLength;
 
     const reasoningSelect = document.getElementById('reasoning-effort');
     reasoningSelect.value = reasoningEffort;
@@ -145,6 +152,18 @@ function init() {
         });
     }
 
+    if (closeDiscussionBtn) {
+        closeDiscussionBtn.addEventListener('click', () => {
+            // Toggle off discussion mode
+            const discussionModeCheckbox = document.getElementById('discussion-mode');
+            if (discussionModeCheckbox) {
+                discussionModeCheckbox.checked = false;
+                // Trigger change event manually
+                discussionModeCheckbox.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
         settingsForm.addEventListener('submit', (e) => {
@@ -173,6 +192,18 @@ function init() {
     // Show settings if no API key
     if (!apiKey) {
         settingsModal.style.display = 'flex';
+    }
+
+    // Mode Switch Listener
+    const discussionModeCheckbox = document.getElementById('discussion-mode');
+    if (discussionModeCheckbox) {
+        discussionModeCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.body.classList.add('discussion-active');
+            } else {
+                document.body.classList.remove('discussion-active');
+            }
+        });
     }
 }
 
@@ -284,12 +315,14 @@ function saveSettings() {
     selectedModel = modelSelect.value;
     reasoningEffort = document.getElementById('reasoning-effort').value;
     selectedTheme = themeSelect.value;
+    maxResponseLength = maxLengthInput ? maxLengthInput.value.trim() : 300;
 
     if (apiKey) {
         localStorage.setItem('magi_api_key', apiKey);
         localStorage.setItem('magi_model', selectedModel);
         localStorage.setItem('magi_reasoning_effort', reasoningEffort);
         localStorage.setItem('magi_theme', selectedTheme);
+        localStorage.setItem('magi_max_length', maxResponseLength);
 
         applyTheme(selectedTheme);
         settingsModal.style.display = 'none';
@@ -332,25 +365,299 @@ async function startAnalysis() {
         return;
     }
 
-    const promises = activeCores.map(core => processCore(core, client, topic));
+    const isDiscussionMode = document.getElementById('discussion-mode').checked;
 
-    try {
-        const results = await Promise.all(promises);
-        determineFinalResult(results);
-        topicInput.value = ""; // Clear input after sending
-    } catch (error) {
-        console.error("Analysis failed:", error);
-        alert("エラーが発生しました。APIキーや通信状況を確認してください。");
+    if (isDiscussionMode) {
+        await runDiscussionMode(activeCores, client, topic);
+    } else {
+        const promises = activeCores.map(core => processCore(core, client, topic));
+
+        try {
+            const results = await Promise.all(promises);
+            determineFinalResult(results);
+            topicInput.value = ""; // Clear input after sending
+        } catch (error) {
+            console.error("Analysis failed:", error);
+            alert("エラーが発生しました。APIキーや通信状況を確認してください。");
+        }
     }
 }
 
-async function processCore(core, client, topic) {
+function waitForNextPhase() {
+    return new Promise(resolve => {
+        nextPhaseBtn.style.display = 'block';
+        nextPhaseBtn.classList.add('blink-active');
+
+        // Scroll button into view
+        nextPhaseBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        nextPhaseBtn.onclick = () => {
+            nextPhaseBtn.style.display = 'none';
+            nextPhaseBtn.classList.remove('blink-active');
+            resolve();
+        };
+    });
+}
+
+async function runDiscussionMode(activeCores, client, topic) {
+    topicInput.value = ""; // Clear input immediately
+    finalResultText.textContent = "DISCUSSION PHASE 1";
+
+    // Show Discussion Overlay (Already visible via CSS, but ensure log is clear)
+    discussionTimeline.innerHTML = ''; // Clear previous log
+    appendDiscussionLog("SYSTEM", `>>> CONFERENCE MODE INITIATED\n>>> TOPIC: ${topic}`, "system");
+
+    // --- Round 1: Initial Analysis (Parallel) ---
+    appendDiscussionLog("SYSTEM", "--- PHASE 1: INITIAL ANALYSIS ---", "phase");
+
+    const round1Results = [];
+    const round1Promises = activeCores.map(async (core) => {
+        setActiveSpeaker(core, activeCores);
+        const result = await processCore(core, client, topic, true); // true = discussion mode (no decision yet)
+        round1Results.push({ coreId: core.id, result: result });
+
+        // Log to overlay
+        const personaName = core.select.options[core.select.selectedIndex].text;
+        appendDiscussionLog(personaName, result.reason, "ai", core.id);
+
+        return result;
+    });
+
+    try {
+        await Promise.all(round1Promises);
+    } catch (error) {
+        console.error("Round 1 failed:", error);
+        alert("議論フェーズ1でエラーが発生しました。");
+        return;
+    }
+
+    await waitForNextPhase();
+
+    // --- Round 2: Cross Review (Sequential or Parallel with context) ---
+    finalResultText.textContent = "DISCUSSION PHASE 2";
+    appendDiscussionLog("SYSTEM", "--- PHASE 2: CROSS REVIEW ---", "phase");
+
+    // Prepare context for each core (what others said)
+    const round2Promises = activeCores.map(async (core) => {
+        setActiveSpeaker(core, activeCores);
+
+        // Gather other cores' opinions
+        const othersOpinions = round1Results
+            .filter(r => r.coreId !== core.id)
+            .map(r => {
+                const personaName = cores.find(c => c.id === r.coreId).select.options[cores.find(c => c.id === r.coreId).select.selectedIndex].text;
+                return `[${personaName}]: ${r.result.reason}`; // Assuming result has 'reason'
+            })
+            .join("\n\n");
+
+        const discussionPrompt = `
+議題: ${topic}
+
+他の参加者の意見:
+${othersOpinions}
+
+これらを踏まえて、あなたの立場から意見を述べてください。
+他の意見への賛成、反論、または補足を行ってください。
+まだ最終的な結論（承認/否定）は出さなくて構いません。議論を深めてください。
+回答は${maxResponseLength}文字以内で簡潔にお願いします。
+`;
+
+        core.element.classList.add('processing');
+        core.status.textContent = "DEBATING...";
+
+        core.history.push({ role: "user", content: discussionPrompt });
+
+        const personaId = core.select.value;
+        const persona = PERSONAS.find(p => p.id === personaId);
+
+        try {
+            const result = await client.analyze(core.history, persona.systemPrompt);
+
+            core.element.classList.remove('processing');
+            core.status.textContent = "OPINION";
+
+            core.history.push({ role: "assistant", content: JSON.stringify(result) });
+            appendMessageToDisplay(core, "ai", result.reason);
+
+            // Log to overlay
+            const personaName = core.select.options[core.select.selectedIndex].text;
+            appendDiscussionLog(personaName, result.reason, "ai", core.id);
+
+            return result;
+        } catch (error) {
+            console.error(`Core ${core.id} Round 2 failed`, error);
+            core.element.classList.remove('processing');
+            return null;
+        }
+    });
+
+    try {
+        await Promise.all(round2Promises);
+    } catch (error) {
+        console.error("Round 2 failed:", error);
+    }
+
+    await waitForNextPhase();
+
+    // --- Round 3: Final Decision ---
+    finalResultText.textContent = "FINAL JUDGMENT";
+    appendDiscussionLog("SYSTEM", "--- PHASE 3: FINAL JUDGMENT ---", "phase");
+
+    const round3Promises = activeCores.map(async (core) => {
+        setActiveSpeaker(core, activeCores);
+
+        const finalPrompt = `議論を踏まえて、最終的な結論（承認 または 否定）とその理由を述べてください。回答は${maxResponseLength}文字以内で簡潔にお願いします。`;
+
+        core.element.classList.add('processing');
+        core.status.textContent = "JUDGING...";
+
+        core.history.push({ role: "user", content: finalPrompt });
+
+        const personaId = core.select.value;
+        const persona = PERSONAS.find(p => p.id === personaId);
+
+        try {
+            const result = await client.analyze(core.history, persona.systemPrompt);
+
+            core.element.classList.remove('processing');
+            core.status.textContent = result.decision;
+
+            core.history.push({ role: "assistant", content: JSON.stringify(result) });
+            appendMessageToDisplay(core, "ai", result.reason);
+
+            // Log to overlay
+            const personaName = core.select.options[core.select.selectedIndex].text;
+            appendDiscussionLog(personaName, `[${result.decision}] ${result.reason}`, "ai", core.id);
+
+            // Apply Color Style
+            if (result.decision.includes("承認")) {
+                core.element.classList.add('approved');
+                core.element.classList.remove('denied');
+            } else {
+                core.element.classList.add('denied');
+                core.element.classList.remove('approved');
+            }
+
+            return result.decision;
+        } catch (error) {
+            console.error(`Core ${core.id} Round 3 failed`, error);
+            return "ERROR";
+        }
+    });
+
+    try {
+        const results = await Promise.all(round3Promises);
+        determineFinalResult(results);
+        resetActiveSpeakers(activeCores);
+        appendDiscussionLog("SYSTEM", `>>> FINAL DECISION: ${finalResultText.textContent}`, "system");
+
+        await waitForNextPhase();
+
+        // --- Phase 4: Consensus (New) ---
+        appendDiscussionLog("SYSTEM", "--- PHASE 4: CONSENSUS REPORT ---", "phase");
+
+        const allDiscussions = activeCores.map(core => {
+            const personaName = core.select.options[core.select.selectedIndex].text;
+            // Get the last assistant message (Round 3 result)
+            const lastMsg = core.history[core.history.length - 1];
+            const content = JSON.parse(lastMsg.content);
+            return `[${personaName}] (${content.decision}): ${content.reason}`;
+        }).join("\n\n");
+
+        const summaryPrompt = `
+議題: ${topic}
+
+最終判定結果: ${finalResultText.textContent}
+
+各コアの最終意見:
+${allDiscussions}
+
+上記を踏まえて、MAGIシステムとしての「最終合意形成レポート」を作成してください。
+以下の形式のJSONで出力してください：
+{
+  "summary": "議論の要約（対立点や合意点）",
+  "reason": "最終結論に至った主な理由",
+  "action": "今後の推奨アクション（あれば）"
+}
+
+簡潔にまとめてください。
+`;
+
+        const summarySystemPrompt = "あなたはMAGIシステムのメインオペレーティングシステムです。複数のAI人格による議論を統括し、客観的で簡潔な最終レポートを作成します。出力は必ずJSON形式で行ってください。";
+
+        const summaryResult = await client.analyze([
+            { role: "user", content: summaryPrompt }
+        ], summarySystemPrompt);
+
+        // Since summaryResult is already parsed JSON from client.analyze
+        const reportText = `【要約】\n${summaryResult.summary}\n\n【理由】\n${summaryResult.reason}\n\n【推奨アクション】\n${summaryResult.action}`;
+
+        appendDiscussionLog("MAGI SYSTEM", reportText, "final-report");
+
+    } catch (error) {
+        console.error("Round 3/4 failed:", error);
+    }
+} function appendDiscussionLog(speaker, text, type, coreId = null) {
+    const entry = document.createElement('div');
+
+    if (type === 'phase') {
+        entry.className = 'timeline-phase';
+        entry.textContent = text;
+    } else {
+        entry.className = 'timeline-entry';
+        if (coreId) {
+            entry.classList.add(`core-${coreId}`);
+        }
+        if (type === 'final-report') {
+            entry.classList.add('final-report');
+        }
+
+        const header = document.createElement('div');
+        header.className = 'timeline-header';
+        header.textContent = speaker;
+
+        const content = document.createElement('div');
+        content.className = 'timeline-content';
+        content.textContent = text;
+
+        entry.appendChild(header);
+        entry.appendChild(content);
+    }
+
+    discussionTimeline.appendChild(entry);
+    // Scroll the new entry into view smoothly
+    entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function setActiveSpeaker(activeCore, allCores) {
+    allCores.forEach(core => {
+        if (core.id === activeCore.id) {
+            core.element.classList.add('active-speaker');
+            core.element.classList.remove('dimmed');
+        } else {
+            core.element.classList.remove('active-speaker');
+            core.element.classList.add('dimmed');
+        }
+    });
+}
+
+function resetActiveSpeakers(allCores) {
+    allCores.forEach(core => {
+        core.element.classList.remove('active-speaker');
+        core.element.classList.remove('dimmed');
+    });
+}
+
+async function processCore(core, client, topic, isDiscussion = false) {
     // Set Loading State
     core.element.classList.add('processing');
     core.status.textContent = "PROCESSING...";
 
-    // Add user message to history
-    core.history.push({ role: "user", content: topic });
+    // Add user message to history with length constraint
+    const promptWithLimit = `${topic}\n\n(回答は${maxResponseLength}文字以内で簡潔にお願いします)`;
+    core.history.push({ role: "user", content: promptWithLimit });
+
+    // Display original topic to user (without the system instruction)
     appendMessageToDisplay(core, "user", topic);
 
     const personaId = core.select.value;
@@ -361,22 +668,31 @@ async function processCore(core, client, topic) {
 
         // Update UI with Result
         core.element.classList.remove('processing');
-        core.status.textContent = result.decision; // "承認" or "否定"
+
+        if (isDiscussion) {
+            core.status.textContent = "OPINION";
+        } else {
+            core.status.textContent = result.decision; // "承認" or "否定"
+        }
 
         // Add AI response to history
         core.history.push({ role: "assistant", content: JSON.stringify(result) });
         appendMessageToDisplay(core, "ai", result.reason);
 
-        // Apply Color Style
-        if (result.decision.includes("承認")) {
-            core.element.classList.add('approved');
-            core.element.classList.remove('denied');
-        } else {
-            core.element.classList.add('denied');
-            core.element.classList.remove('approved');
+        // Apply Color Style (Only if not discussion mode, or if it's the final round)
+        // For now, processCore is used for Round 1 of discussion, where we don't want to color yet
+        if (!isDiscussion) {
+            if (result.decision.includes("承認")) {
+                core.element.classList.add('approved');
+                core.element.classList.remove('denied');
+            } else {
+                core.element.classList.add('denied');
+                core.element.classList.remove('approved');
+            }
         }
 
-        return result.decision;
+        // Return full result object if discussion mode, else just decision string
+        return isDiscussion ? result : result.decision;
     } catch (error) {
         core.element.classList.remove('processing');
         core.status.textContent = "ERROR";
@@ -390,7 +706,8 @@ function appendMessageToDisplay(core, role, text) {
     msgDiv.classList.add('message', role);
     msgDiv.textContent = text;
     core.display.appendChild(msgDiv);
-    core.display.scrollTop = core.display.scrollHeight;
+    // Scroll the new message into view smoothly
+    msgDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function determineFinalResult(results) {

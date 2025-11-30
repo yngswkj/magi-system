@@ -90,7 +90,17 @@
             <div class="input-area">
                 <textarea id="topic-input"
                     placeholder="議題を入力してください... (例: 新規プロジェクトXの立ち上げについて) [Ctrl+Enterで送信]"></textarea>
-                <button id="analyze-btn">ANALYZE</button>
+                <div class="controls-wrapper">
+                    <button id="analyze-btn">ANALYZE</button>
+                    <div class="mode-switch-container">
+                        <input type="checkbox" id="discussion-mode" class="mode-checkbox">
+                        <label for="discussion-mode" class="mode-label">
+                            <span class="mode-text normal">NORMAL MODE</span>
+                            <span class="mode-text discussion">DISCUSSION MODE</span>
+                            <span class="mode-indicator"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="random-controls" style="text-align: center; margin-top: 10px;">
                 <button id="random-persona-btn">RANDOMIZE PERSONAS</button>
@@ -136,12 +146,37 @@
                         <option value="red">Red</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="max-length">Max Response Length (Chars)</label>
+                    <input type="number" id="max-length" value="300" min="50" max="2000"
+                        style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--main-color); color: var(--main-color); padding: 5px;">
+                </div>
                 <div class="modal-actions">
                     <button type="button" id="cancel-settings"
                         style="border-color: var(--dim-color); color: #888; margin-right: 10px;">CANCEL</button>
                     <button type="submit" id="save-settings">SAVE & CLOSE</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Discussion Overlay -->
+    <div id="discussion-overlay" class="discussion-overlay">
+        <div class="discussion-window">
+            <div class="discussion-header">
+                <span class="blink"> >> CONFERENCE MODE ACTIVE << </span>
+                        <button id="close-discussion">MINIMIZE</button>
+            </div>
+            <div class="discussion-timeline" id="discussion-timeline">
+                <!-- Messages go here -->
+            </div>
+            <div class="discussion-controls"
+                style="padding: 10px; text-align: center; border-top: 1px solid var(--dim-color);">
+                <button id="next-phase-btn"
+                    style="display: none; width: 100%; padding: 10px; background: rgba(0,0,0,0.8); border: 1px solid var(--main-color); color: var(--main-color); cursor: pointer; font-weight: bold; letter-spacing: 2px;">
+                    PROCEED TO NEXT PHASE >>
+                </button>
+            </div>
         </div>
     </div>
 
