@@ -5,8 +5,10 @@ import { OpenAIClient } from './api.js';
 const settingsModal = document.getElementById('settings-modal');
 const settingsBtn = document.getElementById('settings-btn');
 const saveSettingsBtn = document.getElementById('save-settings');
+const cancelSettingsBtn = document.getElementById('cancel-settings');
 const apiKeyInput = document.getElementById('api-key');
 const modelSelect = document.getElementById('model-select');
+const themeSelect = document.getElementById('theme-select');
 const analyzeBtn = document.getElementById('analyze-btn');
 const topicInput = document.getElementById('topic-input');
 const randomPersonaBtn = document.getElementById('random-persona-btn');
@@ -48,6 +50,35 @@ const cores = [
 let apiKey = localStorage.getItem('magi_api_key') || '';
 let selectedModel = localStorage.getItem('magi_model') || 'gpt-5.1';
 let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
+let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
+
+const THEMES = {
+    orange: {
+        main: '#ff9900',
+        dim: '#663300',
+        text: '#ffcc00'
+    },
+    blue: {
+        main: '#0099ff',
+        dim: '#003366',
+        text: '#66ccff'
+    },
+    green: {
+        main: '#00ff99',
+        dim: '#006633',
+        text: '#66ffcc'
+    },
+    purple: {
+        main: '#9900ff',
+        dim: '#330066',
+        text: '#cc66ff'
+    },
+    red: {
+        main: '#ff0033',
+        dim: '#660011',
+        text: '#ff6666'
+    }
+};
 
 // Initialize
 function init() {
@@ -57,6 +88,15 @@ function init() {
 
     const reasoningSelect = document.getElementById('reasoning-effort');
     reasoningSelect.value = reasoningEffort;
+
+    if (themeSelect) {
+        themeSelect.value = selectedTheme;
+        // Preview theme on change
+        themeSelect.addEventListener('change', (e) => {
+            applyTheme(e.target.value);
+        });
+    }
+    applyTheme(selectedTheme);
 
     // Toggle reasoning select visibility based on model
     toggleReasoningSelect();
@@ -90,7 +130,20 @@ function init() {
     });
 
     // Event Listeners
-    settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
+    settingsBtn.addEventListener('click', () => {
+        // Reset form to saved values when opening
+        if (themeSelect) themeSelect.value = selectedTheme;
+        applyTheme(selectedTheme); // Ensure correct theme is applied
+        settingsModal.style.display = 'flex';
+    });
+
+    if (cancelSettingsBtn) {
+        cancelSettingsBtn.addEventListener('click', () => {
+            // Revert to saved theme
+            applyTheme(selectedTheme);
+            settingsModal.style.display = 'none';
+        });
+    }
 
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
@@ -230,15 +283,27 @@ function saveSettings() {
     apiKey = apiKeyInput.value.trim();
     selectedModel = modelSelect.value;
     reasoningEffort = document.getElementById('reasoning-effort').value;
+    selectedTheme = themeSelect.value;
 
     if (apiKey) {
         localStorage.setItem('magi_api_key', apiKey);
         localStorage.setItem('magi_model', selectedModel);
         localStorage.setItem('magi_reasoning_effort', reasoningEffort);
+        localStorage.setItem('magi_theme', selectedTheme);
+
+        applyTheme(selectedTheme);
         settingsModal.style.display = 'none';
     } else {
         alert('API Keyを入力してください');
     }
+}
+
+function applyTheme(themeName) {
+    const theme = THEMES[themeName] || THEMES.orange;
+    const root = document.documentElement;
+    root.style.setProperty('--main-color', theme.main);
+    root.style.setProperty('--dim-color', theme.dim);
+    root.style.setProperty('--text-color', theme.text);
 }
 
 async function startAnalysis() {
