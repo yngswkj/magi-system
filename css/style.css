@@ -620,34 +620,65 @@ input, select {
     animation: blink-btn 1.5s infinite ease-in-out;
 }
 
+.mobile-only-btn {
+    display: none;
+}
+
 /* Mobile Optimization */
 @media (max-width: 768px) {
+    body {
+        overflow: hidden;
+    }
+
+    .desktop-only {
+        display: none !important;
+    }
+
+    .mobile-only-btn {
+        display: block !important;
+        width: 50px !important;
+        padding: 0 !important;
+        font-size: 0.8rem;
+    }
+
     .container {
         padding: 10px;
+        height: 100%;
     }
 
     header {
         flex-direction: column;
         gap: 10px;
-        align-items: flex-start;
+        align-items: center;
+        margin-bottom: 10px;
+        flex-shrink: 0;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+        text-align: center;
     }
 
     .status-bar {
         width: 100%;
-        justify-content: space-between;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
     .magi-layout {
         display: flex;
         flex-direction: column;
         overflow-y: auto;
-        padding-bottom: 20px;
+        padding-bottom: 160px;
+        /* Space for fixed input area */
+        gap: 15px;
     }
 
     .magi-core {
         width: 100% !important;
         margin: 0 !important;
-        min-height: 300px;
+        min-height: 250px;
         flex-shrink: 0;
     }
 
@@ -659,103 +690,112 @@ input, select {
         grid-row: auto;
     }
 
-    /* Adjust Center Result for Mobile */
+    /* Adjust Center Result for Mobile - Simplify to a bar */
     .magi-center {
         position: relative;
         top: auto;
         left: auto;
         transform: none;
         width: 100%;
-        height: 180px;
-        margin-top: 20px;
-        order: 10;
-        /* Place at the bottom */
-    }
-
-    .input-area {
-        flex-direction: column;
         height: auto;
-        flex-shrink: 0;
+        margin: 0;
+        order: -1;
+        /* Show at top */
+        z-index: 1;
     }
 
-    .controls-wrapper {
+    .result-display {
+        transform: none;
         width: 100%;
+        height: auto;
+        padding: 10px;
+        border-width: 2px;
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .result-text {
+        transform: none;
+        font-size: 1rem;
+        white-space: normal;
+    }
+
+    /* Fixed Input Area */
+    .input-area {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        flex-direction: column;
+        background: rgba(0, 0, 0, 0.95);
+        padding: 10px;
+        border-top: 2px solid var(--main-color);
+        z-index: 1000;
+        gap: 10px;
     }
 
     textarea {
         height: 60px;
     }
 
-    #analyze-btn {
+    .controls-wrapper {
         width: 100%;
-        height: 40px;
+        flex-direction: row;
+        gap: 10px;
+    }
+
+    .mode-switch-container {
+        flex: 1;
+    }
+
+    #analyze-btn {
+        flex: 1;
+        width: auto;
     }
 
     /* Modal Adjustments */
-    .modal-content {
-        width: 95%;
-        padding: 20px;
+    .modal {
+        padding-top: 0;
+        align-items: center;
     }
 
-    .discussion-window {
+    .modal-content {
         width: 95%;
-        height: 80%;
-        /* Leave space for input area if needed, or just fill mostly */
-        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        height: 90%;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #settings-form, .tab-content {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    /* Discussion Mode Mobile */
+    .discussion-window {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        border: none;
+        clip-path: none;
     }
 
     .discussion-header {
         padding: 10px;
-        font-size: 1rem;
-    }
-
-    .discussion-header span.blink {
-        font-size: 0.8rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 0.9rem;
     }
 
     .discussion-timeline {
         padding: 10px;
+        padding-bottom: 180px;
+        /* Ensure content isn't hidden by input */
     }
 
-    .timeline-entry {
-        padding: 8px 8px 8px 12px;
-        /* Slightly less padding */
-        border-left-width: 2px;
-    }
-
-    .timeline-header {
-        font-size: 0.8rem;
-    }
-
-    .timeline-content {
-        font-size: 0.9rem;
-    }
-
-    .timeline-phase {
-        font-size: 0.8rem;
-        padding: 5px;
-        margin: 5px 0;
-    }
-
-    /* Adjust input area z-index and position for mobile discussion */
+    /* Ensure input area stays on top in discussion mode */
     body.discussion-active .input-area {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: #000;
-        padding: 10px;
-        border-top: 1px solid var(--dim-color);
-    }
-
-    /* Make room for the fixed input area */
-    body.discussion-active .discussion-window {
-        height: calc(100% - 140px);
-        /* Approximate height of input area */
-        margin-bottom: 140px;
+        z-index: 1001;
     }
 }
 

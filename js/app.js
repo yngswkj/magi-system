@@ -6,12 +6,13 @@ const settingsModal = document.getElementById('settings-modal');
 const settingsBtn = document.getElementById('settings-btn');
 const saveSettingsBtn = document.getElementById('save-settings');
 const cancelSettingsBtn = document.getElementById('cancel-settings');
-const apiKeyInput = document.getElementById('api-key');
+// apiKeyInput removed
 const modelSelect = document.getElementById('model-select');
 const themeSelect = document.getElementById('theme-select');
 const analyzeBtn = document.getElementById('analyze-btn');
 const topicInput = document.getElementById('topic-input');
 const randomPersonaBtn = document.getElementById('random-persona-btn');
+const randomPersonaBtnDesktop = document.getElementById('random-persona-btn-desktop');
 const finalResultDisplay = document.getElementById('final-result');
 const finalResultText = finalResultDisplay.querySelector('.result-text');
 const discussionOverlay = document.getElementById('discussion-overlay');
@@ -55,7 +56,7 @@ const cores = [
 ];
 
 // State
-let apiKey = localStorage.getItem('magi_api_key') || '';
+// apiKey removed
 let selectedModel = localStorage.getItem('magi_model') || 'gpt-5.1';
 let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
 let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
@@ -159,7 +160,7 @@ const THEMES = {
 // Initialize
 function init() {
     // Load Settings
-    if (apiKey) apiKeyInput.value = apiKey;
+    // apiKey initialization removed
     modelSelect.value = selectedModel;
     if (maxLengthInput) maxLengthInput.value = maxResponseLength;
 
@@ -270,11 +271,11 @@ function init() {
     if (randomPersonaBtn) {
         randomPersonaBtn.addEventListener('click', randomizePersonas);
     }
-
-    // Show settings if no API key
-    if (!apiKey) {
-        settingsModal.style.display = 'flex';
+    if (randomPersonaBtnDesktop) {
+        randomPersonaBtnDesktop.addEventListener('click', randomizePersonas);
     }
+
+    // API Key check removed
 
     // Mode Switch Listener
     const discussionModeCheckbox = document.getElementById('discussion-mode');
@@ -355,12 +356,14 @@ function init() {
 // Core logic unchanged...
 
 async function randomizePersonas() {
-    randomPersonaBtn.disabled = true;
+    if (randomPersonaBtn) randomPersonaBtn.disabled = true;
+    if (randomPersonaBtnDesktop) randomPersonaBtnDesktop.disabled = true;
 
     // 1. Determine target personas (Unique shuffle)
     const activeCores = cores.filter(core => core.toggle.checked);
     if (activeCores.length === 0) {
-        randomPersonaBtn.disabled = false;
+        if (randomPersonaBtn) randomPersonaBtn.disabled = false;
+        if (randomPersonaBtnDesktop) randomPersonaBtnDesktop.disabled = false;
         return;
     }
 
@@ -381,7 +384,8 @@ async function randomizePersonas() {
 
     await Promise.all(animations);
 
-    randomPersonaBtn.disabled = false;
+    if (randomPersonaBtn) randomPersonaBtn.disabled = false;
+    if (randomPersonaBtnDesktop) randomPersonaBtnDesktop.disabled = false;
 }
 
 function runSlotAnimation(core, targetPersona, delay) {
@@ -458,24 +462,20 @@ function toggleReasoningSelect() {
 }
 
 function saveSettings() {
-    apiKey = apiKeyInput.value.trim();
+    // apiKey handling removed
     selectedModel = modelSelect.value;
     reasoningEffort = document.getElementById('reasoning-effort').value;
     selectedTheme = themeSelect.value;
     maxResponseLength = maxLengthInput ? maxLengthInput.value.trim() : 300;
 
-    if (apiKey) {
-        localStorage.setItem('magi_api_key', apiKey);
-        localStorage.setItem('magi_model', selectedModel);
-        localStorage.setItem('magi_reasoning_effort', reasoningEffort);
-        localStorage.setItem('magi_theme', selectedTheme);
-        localStorage.setItem('magi_max_length', maxResponseLength);
+    // apiKey check removed
+    localStorage.setItem('magi_model', selectedModel);
+    localStorage.setItem('magi_reasoning_effort', reasoningEffort);
+    localStorage.setItem('magi_theme', selectedTheme);
+    localStorage.setItem('magi_max_length', maxResponseLength);
 
-        applyTheme(selectedTheme);
-        settingsModal.style.display = 'none';
-    } else {
-        alert('API Keyを入力してください');
-    }
+    applyTheme(selectedTheme);
+    settingsModal.style.display = 'none';
 }
 
 function applyTheme(themeName) {
@@ -493,16 +493,12 @@ async function startAnalysis() {
         return;
     }
 
-    if (!apiKey) {
-        alert('設定からAPI Keyを入力してください');
-        settingsModal.style.display = 'flex';
-        return;
-    }
+    // apiKey check removed
 
     // Reset UI for new turn (don't clear history, just status)
     resetStatusUI();
 
-    const client = new OpenAIClient(apiKey, selectedModel, reasoningEffort);
+    const client = new OpenAIClient(selectedModel, reasoningEffort);
 
     // Filter active cores
     const activeCores = cores.filter(core => core.toggle.checked);

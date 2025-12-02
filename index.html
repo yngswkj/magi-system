@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>MAGI System - AI Consensus Review</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -103,10 +103,11 @@
                             <span class="mode-indicator"></span>
                         </label>
                     </div>
+                    <button id="random-persona-btn" class="mobile-only-btn">RND</button>
                 </div>
             </div>
-            <div class="random-controls" style="text-align: center; margin-top: 10px;">
-                <button id="random-persona-btn">RANDOMIZE PERSONAS</button>
+            <div class="random-controls desktop-only" style="text-align: center; margin-top: 10px;">
+                <button id="random-persona-btn-desktop">RANDOMIZE PERSONAS</button>
             </div>
         </main>
     </div>
@@ -127,11 +128,7 @@
                     <!-- Hidden username field for accessibility/password manager support -->
                     <input type="text" name="username" autocomplete="username" style="display:none;">
 
-                    <div class="form-group">
-                        <label for="api-key">OpenAI API Key</label>
-                        <input type="password" id="api-key" placeholder="sk-..." autocomplete="current-password">
-                        <p class="note">※キーはブラウザ内にのみ保存されます</p>
-                    </div>
+                    <!-- API Key field removed -->
                     <div class="form-group">
                         <label for="model-select">Model</label>
                         <select id="model-select">

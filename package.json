@@ -1,0 +1,12 @@
+{
+    "name": "magi-system",
+    "version": "1.0.0",
+    "description": "MAGI System - AI Consensus Review",
+    "main": "index.html",
+    "scripts": {
+        "start": "vercel dev"
+    },
+    "dependencies": {
+        "openai": "^4.0.0"
+    }
+}
