@@ -180,6 +180,18 @@ function getSystemPromptWithJsonInstruction(persona) {
     return persona.systemPrompt + "\n" + instruction;
 }
 
+function getDiscussionSystemPrompt(persona) {
+    const instruction = `
+出力フォーマットは必ず以下のJSON形式にしてください:
+{
+  "stance": "肯定的" | "否定的" | "中立" | "条件付き賛成" | "懸念あり" | "提案",
+  "summary": "意見の要約（50文字以内）",
+  "detail": "詳細な議論内容"
+}`;
+
+    return persona.systemPrompt + "\n" + instruction;
+}
+
 const THEMES = {
     orange: {
         main: '#ff9900',
@@ -681,7 +693,7 @@ async function runDiscussionMode(activeCores, client, topic) {
         core.status.textContent = "ANALYZING..."; // Update status text
         const result = await processCore(core, client, topic, true); // true = discussion mode (no decision yet)
         core.element.classList.remove('processing'); // Remove processing class
-        core.status.textContent = "STANDBY"; // Reset status text
+        core.status.textContent = result.stance || "OPINION"; // Update status with stance
         return { core, result };
     });
 
@@ -696,12 +708,12 @@ async function runDiscussionMode(activeCores, client, topic) {
         round1Results.forEach(({ core, result }) => {
             // Log to overlay
             const personaName = getPersonaNameWithSuffix(core);
-            appendDiscussionLog(personaName, result.reason, "ai", core.id);
+            appendDiscussionLog(personaName, result.detail, "ai", core.id);
         });
 
     } catch (error) {
         console.error("Round 1 failed:", error);
-        alert("議論フェーズ1でエラーが発生しました。");
+        await CustomDialog.alert("議論フェーズ1でエラーが発生しました。");
         return;
     }
 
@@ -727,7 +739,7 @@ async function runDiscussionMode(activeCores, client, topic) {
             .map(r => {
                 const otherCore = cores.find(c => c.id === r.core.id);
                 const personaName = otherCore ? otherCore.select.options[otherCore.select.selectedIndex].text : "Unknown";
-                return `[${personaName}]: ${r.result.reason}`; // Assuming result has 'reason'
+                return `[${personaName}]: ${r.result.detail}`;
             })
             .join("\n\n");
 
@@ -739,7 +751,7 @@ ${othersOpinions}
 
 これらを踏まえて、あなたの立場から意見を述べてください。
 他の意見への賛成、反論、または補足を行ってください。
-まだ最終的な結論（承認/否定）は出さなくて構いません。議論を深めてください。
+まだ最終的な結論は出さなくて構いません。議論を深めてください。
 回答は${maxResponseLength}文字以内で簡潔にお願いします。
 `;
 
@@ -750,16 +762,16 @@ ${othersOpinions}
 
         const personaId = core.select.value;
         const persona = getAllPersonas().find(p => p.id === personaId);
-        const systemPrompt = getSystemPromptWithJsonInstruction(persona);
+        const systemPrompt = getDiscussionSystemPrompt(persona);
 
         try {
             const result = await client.analyze(core.history, systemPrompt);
 
             core.element.classList.remove('processing');
-            core.status.textContent = "STANDBY";
+            core.status.textContent = result.stance || "OPINION";
 
             core.history.push({ role: "assistant", content: JSON.stringify(result) });
-            appendMessageToDisplay(core, "ai", result.reason);
+            appendMessageToDisplay(core, "ai", result.detail);
 
             return { core, result };
         } catch (error) {
@@ -772,7 +784,7 @@ ${othersOpinions}
                 reason = "SYSTEM OVERLOAD: PLEASE WAIT A MOMENT AND RETRY.";
             }
 
-            return { core, result: { decision: "Error", reason: reason } };
+            return { core, result: { stance: "ERROR", detail: reason } };
         }
     });
 
@@ -785,7 +797,7 @@ ${othersOpinions}
 
         round2Results.forEach(({ core, result }) => {
             const personaName = getPersonaNameWithSuffix(core);
-            appendDiscussionLog(personaName, result.reason, "ai", core.id);
+            appendDiscussionLog(personaName, result.detail, "ai", core.id);
         });
     } catch (error) {
         console.error("Round 2 failed:", error);
@@ -806,7 +818,7 @@ ${othersOpinions}
     const round3Promises = activeCores.map(async (core) => {
         setActiveSpeaker(core, activeCores);
 
-        const finalPrompt = `議論を踏まえて、最終的な結論（承認 または 否定）とその理由を述べてください。回答は${maxResponseLength}文字以内で簡潔にお願いします。`;
+        const finalPrompt = `議論を踏まえて、最終的な見解（立場）とその理由を述べてください。回答は${maxResponseLength}文字以内で簡潔にお願いします。`;
 
         core.element.classList.add('processing');
         core.status.textContent = "JUDGING...";
@@ -815,24 +827,26 @@ ${othersOpinions}
 
         const personaId = core.select.value;
         const persona = getAllPersonas().find(p => p.id === personaId);
-        const systemPrompt = getSystemPromptWithJsonInstruction(persona);
+        const systemPrompt = getDiscussionSystemPrompt(persona);
 
         try {
             const result = await client.analyze(core.history, systemPrompt);
 
             core.element.classList.remove('processing');
-            core.status.textContent = result.decision;
+            core.status.textContent = result.stance;
 
             core.history.push({ role: "assistant", content: JSON.stringify(result) });
-            appendMessageToDisplay(core, "ai", result.reason);
+            appendMessageToDisplay(core, "ai", result.detail);
 
-            // Apply Color Style
-            if (result.decision.includes("承認")) {
+            // Apply Color Style based on stance
+            if (result.stance.includes("肯定") || result.stance.includes("賛成")) {
                 core.element.classList.add('approved');
                 core.element.classList.remove('denied');
-            } else {
+            } else if (result.stance.includes("否定") || result.stance.includes("反対")) {
                 core.element.classList.add('denied');
                 core.element.classList.remove('approved');
+            } else {
+                core.element.classList.remove('approved', 'denied');
             }
 
             return { core, result };
@@ -846,7 +860,7 @@ ${othersOpinions}
                 reason = "SYSTEM OVERLOAD: PLEASE WAIT A MOMENT AND RETRY.";
             }
 
-            return { core, result: { decision: "ERROR", reason: reason } };
+            return { core, result: { stance: "ERROR", detail: reason } };
         }
     });
 
@@ -859,13 +873,14 @@ ${othersOpinions}
 
         round3Results.forEach(({ core, result }) => {
             const personaName = getPersonaNameWithSuffix(core);
-            appendDiscussionLog(personaName, `[${result.decision}] ${result.reason}`, "ai", core.id);
+            appendDiscussionLog(personaName, `[${result.stance}] ${result.detail}`, "ai", core.id);
         });
 
-        const results = round3Results.map(r => r.result.decision);
-        determineFinalResult(results, topic); // Pass topic here
+        // const results = round3Results.map(r => r.result.decision);
+        // determineFinalResult(results, topic); // Pass topic here
+        finalResultText.textContent = "DISCUSSION COMPLETE";
         resetActiveSpeakers(activeCores);
-        appendDiscussionLog("SYSTEM", `>>> FINAL DECISION: ${finalResultText.textContent}`, "system");
+        appendDiscussionLog("SYSTEM", `>>> DISCUSSION COMPLETE`, "system");
 
         await waitForNextPhase();
 
@@ -879,13 +894,11 @@ ${othersOpinions}
 
         const allDiscussions = round3Results.map(({ core, result }) => {
             const personaName = getPersonaNameWithSuffix(core);
-            return `[${personaName}] (${result.decision}): ${result.reason}`;
+            return `[${personaName}] (${result.stance}): ${result.detail}`;
         }).join("\n\n");
 
         const summaryPrompt = `
 議題: ${topic}
-
-最終判定結果: ${finalResultText.textContent}
 
 各コアの最終意見:
 ${allDiscussions}
@@ -994,6 +1007,12 @@ async function processCore(core, client, topic, isDiscussion = false) {
     core.element.classList.add('processing');
     core.status.textContent = "PROCESSING...";
 
+    // Initialize History if empty or new session
+    // In discussion mode, we might want to start fresh or keep context.
+    // For Round 1, we usually start fresh.
+    // Let's assume processCore is called for the first turn.
+    core.history = [];
+
     // Add user message to history with length constraint
     const promptWithLimit = `${topic}\n\n(回答は${maxResponseLength}文字以内で簡潔にお願いします)`;
     core.history.push({ role: "user", content: promptWithLimit });
@@ -1003,7 +1022,9 @@ async function processCore(core, client, topic, isDiscussion = false) {
 
     const personaId = core.select.value;
     const persona = getAllPersonas().find(p => p.id === personaId);
-    const systemPrompt = getSystemPromptWithJsonInstruction(persona);
+    const systemPrompt = isDiscussion
+        ? getDiscussionSystemPrompt(persona)
+        : getSystemPromptWithJsonInstruction(persona);
 
     try {
         const result = await client.analyze(core.history, systemPrompt);
@@ -1012,14 +1033,16 @@ async function processCore(core, client, topic, isDiscussion = false) {
         core.element.classList.remove('processing');
 
         if (isDiscussion) {
-            core.status.textContent = "OPINION";
+            core.status.textContent = result.stance || "OPINION";
         } else {
             core.status.textContent = result.decision; // "承認" or "否定"
         }
 
         // Add AI response to history
         core.history.push({ role: "assistant", content: JSON.stringify(result) });
-        appendMessageToDisplay(core, "ai", result.reason);
+
+        const displayContent = isDiscussion ? result.detail : result.reason;
+        appendMessageToDisplay(core, "ai", displayContent);
 
         // Apply Color Style (Only if not discussion mode, or if it's the final round)
         // For now, processCore is used for Round 1 of discussion, where we don't want to color yet
@@ -1032,6 +1055,19 @@ async function processCore(core, client, topic, isDiscussion = false) {
                 core.element.classList.add('denied');
                 core.element.classList.remove('approved');
                 SoundManager.playDecision(false);
+            }
+        } else {
+            // In discussion mode, apply color based on stance if available
+            if (result.stance) {
+                if (result.stance.includes("肯定") || result.stance.includes("賛成")) {
+                    core.element.classList.add('approved');
+                    core.element.classList.remove('denied');
+                } else if (result.stance.includes("否定") || result.stance.includes("反対")) {
+                    core.element.classList.add('denied');
+                    core.element.classList.remove('approved');
+                } else {
+                    core.element.classList.remove('approved', 'denied');
+                }
             }
         }
 
