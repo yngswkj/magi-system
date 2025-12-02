@@ -59,7 +59,7 @@ const cores = [
 // apiKey removed
 let selectedModel = localStorage.getItem('magi_model') || 'gpt-5.1';
 let reasoningEffort = localStorage.getItem('magi_reasoning_effort') || 'none';
-let selectedTheme = localStorage.getItem('magi_theme') || 'orange';
+let selectedTheme = localStorage.getItem('magi_theme') || 'random';
 let maxResponseLength = localStorage.getItem('magi_max_length') || 300;
 let customPersonas = JSON.parse(localStorage.getItem('magi_custom_personas') || '[]');
 let discussionHistory = JSON.parse(localStorage.getItem('magi_history') || '[]');
@@ -412,16 +412,20 @@ function runSlotAnimation(core, targetPersona, delay) {
         // Build strip content: [Random Personas] ... [Target Persona]
         // Make it long enough for a good spin
         const spinCount = 20;
-        let stripHtml = '';
 
         for (let i = 0; i < spinCount; i++) {
             const randomP = PERSONAS[Math.floor(Math.random() * PERSONAS.length)];
-            stripHtml += `<div class="slot-item">${randomP.name}</div>`;
+            const item = document.createElement('div');
+            item.className = 'slot-item';
+            item.textContent = randomP.name;
+            strip.appendChild(item);
         }
         // Add target at the end
-        stripHtml += `<div class="slot-item">${targetPersona.name}</div>`;
+        const targetItem = document.createElement('div');
+        targetItem.className = 'slot-item';
+        targetItem.textContent = targetPersona.name;
+        strip.appendChild(targetItem);
 
-        strip.innerHTML = stripHtml;
         overlay.appendChild(strip);
         select.parentElement.appendChild(overlay);
 
@@ -479,7 +483,28 @@ function saveSettings() {
 }
 
 function applyTheme(themeName) {
-    const theme = THEMES[themeName] || THEMES.orange;
+    let targetTheme = themeName;
+
+    if (themeName === 'random') {
+        const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+        const now = Date.now();
+        const cached = JSON.parse(localStorage.getItem('magi_random_theme_cache'));
+
+        if (cached && (now - cached.timestamp < CACHE_DURATION)) {
+            targetTheme = cached.color;
+        } else {
+            const keys = Object.keys(THEMES);
+            const randomKey = keys[Math.floor(Math.random() * keys.length)];
+
+            localStorage.setItem('magi_random_theme_cache', JSON.stringify({
+                color: randomKey,
+                timestamp: now
+            }));
+            targetTheme = randomKey;
+        }
+    }
+
+    const theme = THEMES[targetTheme] || THEMES.orange;
     const root = document.documentElement;
     root.style.setProperty('--main-color', theme.main);
     root.style.setProperty('--dim-color', theme.dim);
@@ -762,11 +787,18 @@ ${allDiscussions}
         entry.textContent = text;
     } else if (type === 'final-report') {
         entry.className = 'timeline-entry final-report';
-        entry.innerHTML = `
-**MAGI SYSTEM 最終合意形成レポート**
 
-${text.replace(/\n/g, '\n\n')}
-`;
+        const title = document.createElement('div');
+        title.style.fontWeight = 'bold';
+        title.style.marginBottom = '10px';
+        title.textContent = '**MAGI SYSTEM 最終合意形成レポート**';
+
+        const content = document.createElement('div');
+        content.style.whiteSpace = 'pre-wrap';
+        content.textContent = text;
+
+        entry.appendChild(title);
+        entry.appendChild(content);
     } else {
         entry.className = 'timeline-entry';
         if (coreId) {
@@ -1010,32 +1042,54 @@ function renderCustomPersonaList() {
 
     listContainer.innerHTML = '';
     if (customPersonas.length === 0) {
-        listContainer.innerHTML = '<p style="color: #888; text-align: center;">No custom personas yet.</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.color = '#888';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.textContent = 'No custom personas yet.';
+        listContainer.appendChild(emptyMsg);
         return;
     }
 
     customPersonas.forEach(p => {
         const item = document.createElement('div');
         item.className = 'persona-item';
-        item.innerHTML = `
-            <div class="persona-info">
-                <div class="persona-name">${p.name}</div>
-                <div class="persona-desc">${p.description}</div>
-            </div>
-            <div class="persona-actions">
-                <button class="edit-persona-btn" data-id="${p.id}">EDIT</button>
-                <button class="delete-persona-btn" data-id="${p.id}">DELETE</button>
-            </div>
-        `;
-        listContainer.appendChild(item);
-    });
 
-    // Add listeners
-    listContainer.querySelectorAll('.edit-persona-btn').forEach(btn => {
-        btn.addEventListener('click', () => editCustomPersona(btn.dataset.id));
-    });
-    listContainer.querySelectorAll('.delete-persona-btn').forEach(btn => {
-        btn.addEventListener('click', () => deleteCustomPersona(btn.dataset.id));
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'persona-info';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'persona-name';
+        nameDiv.textContent = p.name;
+
+        const descDiv = document.createElement('div');
+        descDiv.className = 'persona-desc';
+        descDiv.textContent = p.description;
+
+        infoDiv.appendChild(nameDiv);
+        infoDiv.appendChild(descDiv);
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'persona-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-persona-btn';
+        editBtn.textContent = 'EDIT';
+        editBtn.dataset.id = p.id;
+        editBtn.addEventListener('click', () => editCustomPersona(p.id));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-persona-btn';
+        deleteBtn.textContent = 'DELETE';
+        deleteBtn.dataset.id = p.id;
+        deleteBtn.addEventListener('click', () => deleteCustomPersona(p.id));
+
+        actionsDiv.appendChild(editBtn);
+        actionsDiv.appendChild(deleteBtn);
+
+        item.appendChild(infoDiv);
+        item.appendChild(actionsDiv);
+
+        listContainer.appendChild(item);
     });
 }
 
@@ -1172,7 +1226,15 @@ function saveDiscussionHistory(result, topic = null) {
             logs.push({ type: 'phase', text: entry.textContent });
         } else if (entry.classList.contains('timeline-entry')) {
             if (entry.classList.contains('final-report')) {
-                logs.push({ type: 'final-report', html: entry.innerHTML });
+                // Extract text content safely
+                // Assuming structure: Title Div, Content Div
+                let reportText = "";
+                if (entry.children.length >= 2) {
+                    reportText = entry.children[1].textContent;
+                } else {
+                    reportText = entry.innerText;
+                }
+                logs.push({ type: 'final-report', text: reportText });
             } else {
                 const headerEl = entry.querySelector('.timeline-header');
                 const contentEl = entry.querySelector('.timeline-content');
@@ -1220,7 +1282,11 @@ function renderHistoryList() {
 
     listContainer.innerHTML = '';
     if (discussionHistory.length === 0) {
-        listContainer.innerHTML = '<p style="color: #888; text-align: center;">No history available.</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.color = '#888';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.textContent = 'No history available.';
+        listContainer.appendChild(emptyMsg);
         return;
     }
 
@@ -1228,16 +1294,40 @@ function renderHistoryList() {
         const date = new Date(item.timestamp).toLocaleString();
         const el = document.createElement('div');
         el.className = 'persona-item'; // Reuse style
-        el.innerHTML = `
-            <div class="persona-info">
-                <div class="persona-name">${item.topic}</div>
-                <div class="persona-desc">${date} - Result: ${item.result}</div>
-            </div>
-            <div class="persona-actions">
-                <button class="edit-persona-btn" onclick="loadHistory('${item.id}')">LOAD</button>
-                <button class="delete-persona-btn" onclick="deleteHistory('${item.id}')">DELETE</button>
-            </div>
-        `;
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'persona-info';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'persona-name';
+        nameDiv.textContent = item.topic;
+
+        const descDiv = document.createElement('div');
+        descDiv.className = 'persona-desc';
+        descDiv.textContent = `${date} - Result: ${item.result}`;
+
+        infoDiv.appendChild(nameDiv);
+        infoDiv.appendChild(descDiv);
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'persona-actions';
+
+        const loadBtn = document.createElement('button');
+        loadBtn.className = 'edit-persona-btn';
+        loadBtn.textContent = 'LOAD';
+        loadBtn.addEventListener('click', () => loadHistory(item.id));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-persona-btn';
+        deleteBtn.textContent = 'DELETE';
+        deleteBtn.addEventListener('click', () => deleteHistory(item.id));
+
+        actionsDiv.appendChild(loadBtn);
+        actionsDiv.appendChild(deleteBtn);
+
+        el.appendChild(infoDiv);
+        el.appendChild(actionsDiv);
+
         listContainer.appendChild(el);
     });
 }
@@ -1270,7 +1360,19 @@ function loadHistory(id) {
             entry.textContent = log.text;
         } else if (log.type === 'final-report') {
             entry.className = 'timeline-entry final-report';
-            entry.innerHTML = log.html;
+
+            const title = document.createElement('div');
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '10px';
+            title.textContent = '**MAGI SYSTEM 最終合意形成レポート**';
+
+            const content = document.createElement('div');
+            content.style.whiteSpace = 'pre-wrap';
+            // Handle both new (text) and old (html) formats safely
+            content.textContent = log.text || log.html || "";
+
+            entry.appendChild(title);
+            entry.appendChild(content);
         } else if (log.type === 'entry') {
             entry.className = 'timeline-entry';
             if (log.coreId !== null) entry.classList.add(`core-${log.coreId}`);
@@ -1293,9 +1395,9 @@ function loadHistory(id) {
     });
 }
 
-// Expose to global scope for onclick handlers in innerHTML
-window.loadHistory = loadHistory;
-window.deleteHistory = deleteHistory;
+// Expose to global scope removed
+// window.loadHistory = loadHistory;
+// window.deleteHistory = deleteHistory;
 
 function deleteHistory(id) {
     if (!confirm("Delete this history log?")) return;

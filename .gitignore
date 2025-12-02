@@ -5,3 +5,5 @@ node_modules/
 .vscode/
 .idea/
 *.env
+.vercel
+.env*.local

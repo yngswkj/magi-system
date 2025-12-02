@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>MAGI System - AI Consensus Review</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -91,6 +92,10 @@
             </div>
 
             <div class="input-area">
+                <div class="input-warning"
+                    style="display: none; width: 100%; margin-bottom: 5px; font-size: 0.8rem; color: #ffc107; background: rgba(255, 193, 7, 0.1); padding: 5px; border-left: 3px solid #ffc107;">
+                    ⚠️ 機密情報や個人情報は入力しないでください
+                </div>
                 <textarea id="topic-input"
                     placeholder="議題を入力してください... (例: 新規プロジェクトXの立ち上げについて) [Ctrl+Enterで送信]"></textarea>
                 <div class="controls-wrapper">
@@ -147,7 +152,7 @@
                     <div class="form-group">
                         <label for="theme-select">Theme Color</label>
                         <select id="theme-select">
-                            <option value="orange">Orange (Default)</option>
+                            <option value="orange">Orange</option>
                             <option value="blue">Blue</option>
                             <option value="green">Green</option>
                             <option value="purple">Purple</option>
@@ -197,8 +202,11 @@
                     <!-- History items will be injected here -->
                 </div>
                 <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" onclick="exportAllData()"
+                        style="border-color: var(--main-color); color: var(--main-color); margin-right: 10px;">EXPORT
+                        DATA</button>
                     <button type="button" id="clear-history-btn"
-                        style="border-color: var(--deny-color); color: var(--deny-color);">CLEAR ALL HISTORY</button>
+                        style="border-color: var(--deny-color); color: var(--deny-color);">CLEAR HISTORY ONLY</button>
                 </div>
             </div>
         </div>
@@ -228,6 +236,7 @@
         </div>
     </div>
 
+    <script type="module" src="js/privacy.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 

@@ -388,6 +388,7 @@ textarea {
     padding: 10px;
     font-family: var(--font-family);
     resize: none;
+    margin: 0 1px;
 }
 
 .controls-wrapper {
@@ -945,7 +946,8 @@ body.discussion-active .discussion-overlay {
 .discussion-window {
     width: 90%;
     max-width: 800px;
-    height: 75%;
+    height: calc(100% - 200px);
+    /* 入力エリアとの重なりを防ぐため高さを調整 */
     border: 2px solid var(--main-color);
     background: rgba(0, 0, 0, 0.9);
     display: flex;
@@ -1162,4 +1164,43 @@ body.discussion-active .discussion-overlay {
         /* Approximate height of input area */
         margin-bottom: 180px;
     }
+}
+
+/* Notification */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    background: #333;
+    color: white;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    font-family: var(--font-family);
+    border-left: 4px solid #ccc;
+}
+
+.notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.notification-info {
+    border-left-color: #2196f3;
+}
+
+.notification-success {
+    border-left-color: #4caf50;
+}
+
+.notification-warning {
+    border-left-color: #ff9800;
+}
+
+.notification-error {
+    border-left-color: #f44336;
 }
