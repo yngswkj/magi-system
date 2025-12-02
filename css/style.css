@@ -937,7 +937,10 @@ body.discussion-active .discussion-overlay {
     height: 100%;
     background: rgba(0, 0, 0, 0.85);
     z-index: 150;
-    align-items: center;
+    align-items: flex-start;
+    /* 上寄せに変更 */
+    padding-top: 50px;
+    /* 上部に少し余白を持たせる */
     justify-content: center;
     backdrop-filter: blur(2px);
     pointer-events: none;
