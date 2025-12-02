@@ -105,6 +105,57 @@ const SoundManager = {
     }
 };
 
+const CustomDialog = {
+    overlay: null,
+    messageEl: null,
+    okBtn: null,
+    cancelBtn: null,
+
+    init() {
+        this.overlay = document.getElementById('custom-dialog');
+        this.messageEl = document.getElementById('custom-dialog-message');
+        this.okBtn = document.getElementById('custom-dialog-ok');
+        this.cancelBtn = document.getElementById('custom-dialog-cancel');
+    },
+
+    show(message, isConfirm = false) {
+        return new Promise((resolve) => {
+            if (!this.overlay) this.init();
+
+            this.messageEl.textContent = message;
+            this.overlay.style.display = 'flex';
+
+            if (isConfirm) {
+                this.cancelBtn.style.display = 'inline-block';
+            } else {
+                this.cancelBtn.style.display = 'none';
+            }
+
+            this.okBtn.onclick = () => {
+                this.close();
+                resolve(true);
+            };
+
+            this.cancelBtn.onclick = () => {
+                this.close();
+                resolve(false);
+            };
+        });
+    },
+
+    close() {
+        if (this.overlay) this.overlay.style.display = 'none';
+    },
+
+    async alert(message) {
+        await this.show(message, false);
+    },
+
+    async confirm(message) {
+        return await this.show(message, true);
+    }
+};
+
 function getAllPersonas() {
     return [...PERSONAS, ...customPersonas];
 }
@@ -284,12 +335,17 @@ function init() {
             if (e.target.checked) {
                 document.body.classList.add('discussion-active');
                 SoundManager.playPhaseChange();
+                typePlaceholder("MAGIに議論させたいテーマを入力してください... (例: 人生を本当に豊かにするのは「お金」か「時間」か。 [Ctrl+Enterで送信]");
             } else {
                 document.body.classList.remove('discussion-active');
                 SoundManager.playClick();
+                typePlaceholder("議題を入力してください... (例: ダイエット中だけど、今日は良いことがあったのでコンビニスイーツを1個だけ買っても良いか。) [Ctrl+Enterで送信]");
             }
         });
     }
+
+    // Initial Placeholder Animation
+    typePlaceholder("議題を入力してください... (例: 新規プロジェクトXの立ち上げについて) [Ctrl+Enterで送信]");
 
     // Sound Mute Toggle
     const muteBtn = document.getElementById('mute-btn');
@@ -514,7 +570,7 @@ function applyTheme(themeName) {
 async function startAnalysis() {
     const topic = topicInput.value.trim();
     if (!topic) {
-        alert('議題を入力してください');
+        await CustomDialog.alert('議題を入力してください');
         return;
     }
 
@@ -529,7 +585,7 @@ async function startAnalysis() {
     const activeCores = cores.filter(core => core.toggle.checked);
 
     if (activeCores.length === 0) {
-        alert("少なくとも1つのコアを有効にしてください");
+        await CustomDialog.alert("少なくとも1つのコアを有効にしてください");
         return;
     }
 
@@ -546,7 +602,7 @@ async function startAnalysis() {
             topicInput.value = ""; // Clear input after sending
         } catch (error) {
             console.error("Analysis failed:", error);
-            alert("エラーが発生しました。APIキーや通信状況を確認してください。");
+            await CustomDialog.alert("エラーが発生しました。APIキーや通信状況を確認してください。");
         }
     }
 }
@@ -567,25 +623,72 @@ function waitForNextPhase() {
     });
 }
 
+function updateDiscussionStatus(text, isActive) {
+    let statusEl = discussionTimeline.querySelector('.status-indicator');
+    if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.className = 'status-indicator';
+        discussionTimeline.appendChild(statusEl);
+    }
+
+    statusEl.textContent = text;
+
+    if (isActive) {
+        discussionTimeline.classList.add('processing');
+        // Ensure it's at the bottom
+        discussionTimeline.appendChild(statusEl);
+        // Force scroll to bottom to ensure visibility
+        discussionTimeline.scrollTop = discussionTimeline.scrollHeight;
+    } else {
+        discussionTimeline.classList.remove('processing');
+    }
+}
+
+function updateStepFlow(currentStep) {
+    for (let i = 1; i <= 4; i++) {
+        const node = document.getElementById(`step-${i}`);
+        const line = document.getElementById(`line-${i}`);
+        if (node) {
+            node.classList.remove('active', 'completed');
+            if (i < currentStep) node.classList.add('completed');
+            if (i === currentStep) node.classList.add('active');
+        }
+        if (line) {
+            line.classList.remove('active');
+            if (i < currentStep) line.classList.add('active');
+        }
+    }
+}
+
 async function runDiscussionMode(activeCores, client, topic) {
     topicInput.value = ""; // Clear input immediately
     finalResultText.textContent = "DISCUSSION PHASE 1";
 
     // Show Discussion Overlay (Already visible via CSS, but ensure log is clear)
     discussionTimeline.innerHTML = ''; // Clear previous log
-    appendDiscussionLog("SYSTEM", `>>> CONFERENCE MODE INITIATED\n>>> TOPIC: ${topic}`, "system");
+    discussionTimeline.classList.remove('processing'); // Reset processing state
+    appendDiscussionLog("SYSTEM", `>>> DISCUSSION MODE INITIATED\n>>> TOPIC: ${topic}`, "system");
 
     // --- Round 1: Initial Analysis (Parallel) ---
+    updateStepFlow(1);
     appendDiscussionLog("SYSTEM", "--- PHASE 1: INITIAL ANALYSIS ---", "phase");
+    updateDiscussionStatus("ANALYZING...", true);    // Force UI update
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     const round1Promises = activeCores.map(async (core) => {
         setActiveSpeaker(core, activeCores);
+        core.element.classList.add('processing'); // Add processing class
+        core.status.textContent = "ANALYZING..."; // Update status text
         const result = await processCore(core, client, topic, true); // true = discussion mode (no decision yet)
+        core.element.classList.remove('processing'); // Remove processing class
+        core.status.textContent = "STANDBY"; // Reset status text
         return { core, result };
     });
 
+    let round1Results;
     try {
-        const round1Results = await Promise.all(round1Promises);
+        round1Results = await Promise.all(round1Promises);
+        updateDiscussionStatus("", false);
 
         // Sort by Core ID to ensure fixed order
         round1Results.sort((a, b) => a.core.id - b.core.id);
@@ -606,8 +709,13 @@ async function runDiscussionMode(activeCores, client, topic) {
     SoundManager.playPhaseChange();
 
     // --- Round 2: Cross Review (Sequential or Parallel with context) ---
+    updateStepFlow(2);
     finalResultText.textContent = "DISCUSSION PHASE 2";
     appendDiscussionLog("SYSTEM", "--- PHASE 2: CROSS REVIEW ---", "phase");
+    updateDiscussionStatus("DEBATING...", true);
+
+    // Force UI update
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // Prepare context for each core (what others said)
     const round2Promises = activeCores.map(async (core) => {
@@ -615,9 +723,10 @@ async function runDiscussionMode(activeCores, client, topic) {
 
         // Gather other cores' opinions
         const othersOpinions = round1Results
-            .filter(r => r.coreId !== core.id)
+            .filter(r => r.core.id !== core.id)
             .map(r => {
-                const personaName = cores.find(c => c.id === r.coreId).select.options[cores.find(c => c.id === r.coreId).select.selectedIndex].text;
+                const otherCore = cores.find(c => c.id === r.core.id);
+                const personaName = otherCore ? otherCore.select.options[otherCore.select.selectedIndex].text : "Unknown";
                 return `[${personaName}]: ${r.result.reason}`; // Assuming result has 'reason'
             })
             .join("\n\n");
@@ -647,7 +756,7 @@ ${othersOpinions}
             const result = await client.analyze(core.history, systemPrompt);
 
             core.element.classList.remove('processing');
-            core.status.textContent = "OPINION";
+            core.status.textContent = "STANDBY";
 
             core.history.push({ role: "assistant", content: JSON.stringify(result) });
             appendMessageToDisplay(core, "ai", result.reason);
@@ -656,12 +765,20 @@ ${othersOpinions}
         } catch (error) {
             console.error(`Core ${core.id} Round 2 failed`, error);
             core.element.classList.remove('processing');
-            return { core, result: { decision: "Error", reason: "Error processing request." } };
+            core.status.textContent = "ERROR";
+
+            let reason = "Error processing request.";
+            if (error.message.includes("Too many requests")) {
+                reason = "SYSTEM OVERLOAD: PLEASE WAIT A MOMENT AND RETRY.";
+            }
+
+            return { core, result: { decision: "Error", reason: reason } };
         }
     });
 
     try {
         const round2Results = await Promise.all(round2Promises);
+        updateDiscussionStatus("", false);
 
         // Sort by Core ID
         round2Results.sort((a, b) => a.core.id - b.core.id);
@@ -678,8 +795,13 @@ ${othersOpinions}
     SoundManager.playPhaseChange();
 
     // --- Round 3: Final Decision ---
+    updateStepFlow(3);
     finalResultText.textContent = "FINAL JUDGMENT";
     appendDiscussionLog("SYSTEM", "--- PHASE 3: FINAL JUDGMENT ---", "phase");
+    updateDiscussionStatus("JUDGING...", true);
+
+    // Force UI update
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     const round3Promises = activeCores.map(async (core) => {
         setActiveSpeaker(core, activeCores);
@@ -716,12 +838,21 @@ ${othersOpinions}
             return { core, result };
         } catch (error) {
             console.error(`Core ${core.id} Round 3 failed`, error);
-            return { core, result: { decision: "ERROR", reason: "Error processing request." } };
+            core.element.classList.remove('processing');
+            core.status.textContent = "ERROR";
+
+            let reason = "Error processing request.";
+            if (error.message.includes("Too many requests")) {
+                reason = "SYSTEM OVERLOAD: PLEASE WAIT A MOMENT AND RETRY.";
+            }
+
+            return { core, result: { decision: "ERROR", reason: reason } };
         }
     });
 
     try {
         const round3Results = await Promise.all(round3Promises);
+        updateDiscussionStatus("", false);
 
         // Sort by Core ID
         round3Results.sort((a, b) => a.core.id - b.core.id);
@@ -739,7 +870,12 @@ ${othersOpinions}
         await waitForNextPhase();
 
         // --- Phase 4: Consensus (New) ---
+        updateStepFlow(4);
         appendDiscussionLog("SYSTEM", "--- PHASE 4: CONSENSUS REPORT ---", "phase");
+        updateDiscussionStatus("GENERATING REPORT...", true);
+
+        // Force UI update
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         const allDiscussions = round3Results.map(({ core, result }) => {
             const personaName = getPersonaNameWithSuffix(core);
@@ -775,9 +911,16 @@ ${allDiscussions}
         const reportText = `【要約】\n${summaryResult.summary}\n\n【理由】\n${summaryResult.reason}\n\n【推奨アクション】\n${summaryResult.action}`;
 
         appendDiscussionLog("MAGI SYSTEM", reportText, "final-report");
+        updateDiscussionStatus("DISCUSSION COMPLETE", false);
 
     } catch (error) {
         console.error("Round 3/4 failed:", error);
+        let errorMessage = "Error generating report.";
+        if (error && error.message && error.message.includes("Too many requests")) {
+            errorMessage = "SYSTEM OVERLOAD: UNABLE TO GENERATE CONSENSUS REPORT. PLEASE RETRY LATER.";
+        }
+        appendDiscussionLog("MAGI SYSTEM", errorMessage, "final-report");
+        updateDiscussionStatus("ERROR", false);
     }
 } function appendDiscussionLog(speaker, text, type, coreId = null) {
     const entry = document.createElement('div');
@@ -819,7 +962,12 @@ ${allDiscussions}
 
     discussionTimeline.appendChild(entry);
     // Scroll the new entry into view smoothly
-    entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // If it's a phase header, we don't scroll to start because we want to focus on the status that follows
+    if (type !== 'phase') {
+        entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 function setActiveSpeaker(activeCore, allCores) {
@@ -892,7 +1040,13 @@ async function processCore(core, client, topic, isDiscussion = false) {
     } catch (error) {
         core.element.classList.remove('processing');
         core.status.textContent = "ERROR";
-        appendMessageToDisplay(core, "ai", "Error: " + error.message);
+
+        let errorMessage = "Error: " + error.message;
+        if (error.message.includes("Too many requests")) {
+            errorMessage = "SYSTEM OVERLOAD: PLEASE WAIT A MOMENT AND RETRY.";
+        }
+
+        appendMessageToDisplay(core, "ai", errorMessage);
         return "ERROR";
     }
 }
@@ -964,8 +1118,8 @@ function generateLogText() {
     return logText;
 }
 
-function resetSession() {
-    if (!confirm("Reset current session? All unsaved progress will be lost.")) return;
+async function resetSession() {
+    if (!await CustomDialog.confirm("セッションをリセットしますか？未保存の進行状況はすべて失われます。")) return;
 
     // Clear Timeline
     discussionTimeline.innerHTML = '';
@@ -1031,7 +1185,7 @@ async function copyDiscussionLog() {
         }, 2000);
     } catch (err) {
         console.error('Failed to copy: ', err);
-        alert('Failed to copy to clipboard');
+        await CustomDialog.alert('Failed to copy to clipboard');
     }
 }
 
@@ -1093,7 +1247,7 @@ function renderCustomPersonaList() {
     });
 }
 
-function addCustomPersona() {
+async function addCustomPersona() {
     const nameInput = document.getElementById('new-persona-name');
     const descInput = document.getElementById('new-persona-desc');
     const promptInput = document.getElementById('new-persona-prompt');
@@ -1103,7 +1257,7 @@ function addCustomPersona() {
     const prompt = promptInput.value.trim();
 
     if (!name || !prompt) {
-        alert("Name and System Prompt are required.");
+        await CustomDialog.alert("名前とシステムプロンプトは必須です。");
         return;
     }
 
@@ -1173,8 +1327,8 @@ function resetPersonaForm() {
     if (header) header.textContent = "ADD NEW PERSONA";
 }
 
-function deleteCustomPersona(id) {
-    if (!confirm("Are you sure you want to delete this persona?")) return;
+async function deleteCustomPersona(id) {
+    if (!await CustomDialog.confirm("このペルソナを削除してもよろしいですか？")) return;
     customPersonas = customPersonas.filter(p => p.id !== id);
     localStorage.setItem('magi_custom_personas', JSON.stringify(customPersonas));
     renderCustomPersonaList();
@@ -1293,24 +1447,32 @@ function renderHistoryList() {
     discussionHistory.forEach(item => {
         const date = new Date(item.timestamp).toLocaleString();
         const el = document.createElement('div');
-        el.className = 'persona-item'; // Reuse style
+        el.className = 'history-item';
 
         const infoDiv = document.createElement('div');
-        infoDiv.className = 'persona-info';
+        infoDiv.className = 'history-info';
 
         const nameDiv = document.createElement('div');
-        nameDiv.className = 'persona-name';
-        nameDiv.textContent = item.topic;
+        nameDiv.className = 'history-topic';
+
+        // Truncate topic if too long (e.g., 30 chars)
+        const maxLen = 30;
+        let displayTopic = item.topic;
+        if (displayTopic.length > maxLen) {
+            displayTopic = displayTopic.substring(0, maxLen) + "...";
+        }
+        nameDiv.textContent = displayTopic;
+        nameDiv.title = item.topic; // Show full topic on hover
 
         const descDiv = document.createElement('div');
-        descDiv.className = 'persona-desc';
+        descDiv.className = 'history-meta';
         descDiv.textContent = `${date} - Result: ${item.result}`;
 
         infoDiv.appendChild(nameDiv);
         infoDiv.appendChild(descDiv);
 
         const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'persona-actions';
+        actionsDiv.className = 'history-actions';
 
         const loadBtn = document.createElement('button');
         loadBtn.className = 'edit-persona-btn';
@@ -1332,12 +1494,12 @@ function renderHistoryList() {
     });
 }
 
-function loadHistory(id) {
+async function loadHistory(id) {
     const item = discussionHistory.find(h => h.id === id);
     if (!item) return;
 
     if (document.body.classList.contains('discussion-active')) {
-        if (!confirm("Current discussion will be lost. Load history?")) return;
+        if (!await CustomDialog.confirm("現在の議論は失われます。履歴を読み込みますか？")) return;
     }
 
     // Close modal
@@ -1399,18 +1561,36 @@ function loadHistory(id) {
 // window.loadHistory = loadHistory;
 // window.deleteHistory = deleteHistory;
 
-function deleteHistory(id) {
-    if (!confirm("Delete this history log?")) return;
+async function deleteHistory(id) {
+    if (!await CustomDialog.confirm("この履歴ログを削除してもよろしいですか？")) return;
     discussionHistory = discussionHistory.filter(h => h.id !== id);
     localStorage.setItem('magi_history', JSON.stringify(discussionHistory));
     renderHistoryList();
 }
 
-function clearAllHistory() {
-    if (!confirm("Clear ALL history? This cannot be undone.")) return;
+async function clearAllHistory() {
+    if (!await CustomDialog.confirm("すべての履歴をクリアしますか？この操作は元に戻せません。")) return;
     discussionHistory = [];
     localStorage.setItem('magi_history', JSON.stringify(discussionHistory));
     renderHistoryList();
+}
+
+let placeholderInterval;
+function typePlaceholder(text) {
+    const input = document.getElementById('topic-input');
+    if (!input) return;
+
+    input.placeholder = "";
+    if (placeholderInterval) clearInterval(placeholderInterval);
+
+    let i = 0;
+    placeholderInterval = setInterval(() => {
+        input.placeholder += text.charAt(i);
+        i++;
+        if (i >= text.length) {
+            clearInterval(placeholderInterval);
+        }
+    }, 30);
 }
 
 init();

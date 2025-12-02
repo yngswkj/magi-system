@@ -82,6 +82,19 @@ h1 {
     align-items: center;
 }
 
+.header-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.header-buttons button {
+    width: 110px;
+    padding: 5px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 button {
     background: transparent;
     border: 1px solid var(--main-color);
@@ -91,9 +104,18 @@ button {
     cursor: pointer;
     transition: all 0.3s;
     text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
 }
 
-button:hover {
+@media (hover: hover) {
+    button:hover {
+        background: var(--main-color);
+        color: var(--bg-color);
+        box-shadow: 0 0 15px var(--main-color);
+    }
+}
+
+button:active {
     background: var(--main-color);
     color: var(--bg-color);
     box-shadow: 0 0 15px var(--main-color);
@@ -418,7 +440,7 @@ textarea {
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
-    z-index: 200;
+    z-index: 3000;
     align-items: flex-start;
     justify-content: center;
     padding-top: 10%;
@@ -466,11 +488,13 @@ input, select {
 /* Tabs */
 .tabs {
     display: flex;
+    justify-content: center;
     border-bottom: 1px solid var(--dim-color);
     margin-bottom: 20px;
 }
 
 .tab-btn {
+    width: 33.33%;
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
@@ -502,8 +526,28 @@ input, select {
     align-items: center;
 }
 
+.history-item {
+    border: 1px solid var(--dim-color);
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+    transition: border-color 0.3s;
+}
+
+.history-item:hover {
+    border-color: var(--main-color);
+}
+
 .persona-info {
     flex: 1;
+}
+
+.history-info {
+    flex: 1;
+    overflow: hidden;
 }
 
 .persona-name {
@@ -511,14 +555,34 @@ input, select {
     color: var(--main-color);
 }
 
+.history-topic {
+    font-weight: bold;
+    color: var(--main-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .persona-desc {
     font-size: 0.8rem;
     color: #888;
 }
 
+.history-meta {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 4px;
+}
+
 .persona-actions {
     display: flex;
     gap: 10px;
+}
+
+.history-actions {
+    display: flex;
+    gap: 10px;
+    margin-left: 10px;
 }
 
 .edit-persona-btn {
@@ -599,16 +663,22 @@ input, select {
 @keyframes blink-btn {
     0% {
         opacity: 1;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: var(--main-color);
         box-shadow: 0 0 5px var(--main-color);
     }
 
     50% {
-        opacity: 0.8;
+        opacity: 1;
+        background-color: var(--main-color);
+        color: #000;
         box-shadow: 0 0 20px var(--main-color), 0 0 10px var(--main-color) inset;
     }
 
     100% {
         opacity: 1;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: var(--main-color);
         box-shadow: 0 0 5px var(--main-color);
     }
 }
@@ -644,6 +714,7 @@ input, select {
 
     .container {
         padding: 10px;
+        padding-top: calc(10px + env(safe-area-inset-top));
         height: 100%;
     }
 
@@ -662,16 +733,21 @@ input, select {
 
     .status-bar {
         width: 100%;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .header-buttons {
+        width: 100%;
         justify-content: center;
-        flex-wrap: wrap;
-        gap: 10px;
     }
 
     .magi-layout {
         display: flex;
         flex-direction: column;
         overflow-y: auto;
-        padding-bottom: 160px;
+        padding-bottom: 250px;
         /* Space for fixed input area */
         gap: 15px;
     }
@@ -679,8 +755,9 @@ input, select {
     .magi-core {
         width: 100% !important;
         margin: 0 !important;
-        min-height: 250px;
+        min-height: 20%;
         flex-shrink: 0;
+        height: auto !important;
     }
 
     /* Reset Grid Positioning */
@@ -730,14 +807,17 @@ input, select {
         height: auto;
         flex-direction: column;
         background: rgba(0, 0, 0, 0.95);
-        padding: 10px;
+        padding: 15px;
+        padding-bottom: calc(15px + env(safe-area-inset-bottom));
         border-top: 2px solid var(--main-color);
         z-index: 1000;
         gap: 10px;
     }
 
-    textarea {
-        height: 60px;
+    .input-area textarea {
+        flex: none;
+        height: 100px !important;
+        min-height: 100px;
     }
 
     .controls-wrapper {
@@ -971,15 +1051,28 @@ body.discussion-active .discussion-overlay {
 }
 
 #export-discussion {
-    font-size: 0.8rem;
-    padding: 5px 15px;
-    margin-right: 10px;
-    border: 1px solid var(--main-color);
-    background: rgba(0, 0, 0, 0.5);
-    color: var(--main-color);
+    padding: 5px;
+    width: 60px;
 }
 
-#export-discussion:hover {
+#copy-discussion {
+    padding: 5px;
+    width: 60px;
+}
+
+#close-discussion {
+    padding: 5px;
+    width: 60px;
+}
+
+@media (hover: hover) {
+    #export-discussion:hover {
+        background: var(--main-color);
+        color: black;
+    }
+}
+
+#export-discussion:active {
     background: var(--main-color);
     color: black;
 }
@@ -1157,7 +1250,7 @@ body.discussion-active .discussion-overlay {
         left: 0;
         width: 100%;
         background: #000;
-        padding: 10px;
+        padding: 15px;
         border-top: 1px solid var(--dim-color);
     }
 
@@ -1166,6 +1259,10 @@ body.discussion-active .discussion-overlay {
         height: calc(100% - 180px);
         /* Approximate height of input area */
         margin-bottom: 180px;
+    }
+
+    .discussion-overlay {
+        padding-top: 10px;
     }
 }
 
@@ -1206,4 +1303,139 @@ body.discussion-active .discussion-overlay {
 
 .notification-error {
     border-left-color: #f44336;
+}
+
+/* Step Flow */
+.step-flow-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--dim-color);
+    background: rgba(0, 0, 0, 0.5);
+    font-size: 0.8rem;
+    font-family: var(--font-family);
+}
+
+.step-node {
+    color: var(--dim-color);
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s;
+}
+
+.step-node.active {
+    color: var(--main-color);
+    font-weight: bold;
+    text-shadow: 0 0 5px var(--main-color);
+}
+
+.step-node.completed {
+    color: var(--main-color);
+    opacity: 0.7;
+}
+
+.step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--dim-color);
+    margin: 0 10px;
+    position: relative;
+    transition: all 0.3s;
+}
+
+.step-line.active {
+    background: var(--main-color);
+    box-shadow: 0 0 5px var(--main-color);
+}
+
+/* Custom Dialog */
+.custom-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+.custom-dialog-box {
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid var(--main-color);
+    padding: 20px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 0 30px var(--dim-color);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    animation: dialogPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes dialogPop {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.custom-dialog-header {
+    font-weight: bold;
+    color: var(--main-color);
+    border-bottom: 1px solid var(--dim-color);
+    padding-bottom: 10px;
+    letter-spacing: 2px;
+}
+
+.custom-dialog-content {
+    color: var(--text-color);
+    font-size: 1rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.custom-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.dialog-btn {
+    padding: 8px 20px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.dialog-btn.ok {
+    background: rgba(255, 153, 0, 0.1);
+    border: 1px solid var(--main-color);
+    color: var(--main-color);
+}
+
+.dialog-btn.ok:hover {
+    background: var(--main-color);
+    color: #000;
+}
+
+.dialog-btn.cancel {
+    background: transparent;
+    border: 1px solid var(--deny-color);
+    color: var(--deny-color);
+}
+
+.dialog-btn.cancel:hover {
+    background: var(--deny-color);
+    color: #000;
 }

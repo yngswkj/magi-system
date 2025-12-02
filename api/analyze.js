@@ -14,11 +14,11 @@ const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_RE
     })
     : null;
 
-// レート制限: 1分間に10リクエスト
+// レート制限: 1分間に50リクエスト
 const ratelimit = redis
     ? new Ratelimit({
         redis: redis,
-        limiter: Ratelimit.slidingWindow(10, '1 m'),
+        limiter: Ratelimit.slidingWindow(50, '1 m'),
         analytics: true,
         prefix: 'magi_ratelimit',
     })
