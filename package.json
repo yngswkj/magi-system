@@ -2,11 +2,14 @@
     "name": "magi-system",
     "version": "1.0.0",
     "description": "MAGI System - AI Consensus Review",
+    "type": "module",
     "main": "index.html",
     "scripts": {
         "start": "vercel dev"
     },
     "dependencies": {
+        "@upstash/ratelimit": "^2.0.7",
+        "@upstash/redis": "^1.35.7",
         "openai": "^4.0.0"
     }
 }
